@@ -86,6 +86,7 @@ app.get('/', (req, res) => res.send("🚀 Secure Mesh Server Live"));
 
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ status: "error", message: "Missing fields" });
     const cleanUser = username.toLowerCase().trim();
     const user = await User.findOne({ username: cleanUser });
     if (user && await bcrypt.compare(password, user.password)) {
@@ -100,10 +101,15 @@ app.post('/admin/add-user', verifyToken, async (req, res) => {
     if (req.user.role !== 'admin') return res.status(403).send("Admin only");
     try {
         const { username, password, role, rollNo } = req.body;
+        const cleanName = username.toLowerCase().trim();
+        
+        const existing = await User.findOne({ username: cleanName });
+        if(existing) return res.status(400).json({ message: "User already exists" });
+
         const hashedPassword = await bcrypt.hash(password, 10);
-        await User.create({ username: username.toLowerCase().trim(), password: hashedPassword, role, rollNo });
+        await User.create({ username: cleanName, password: hashedPassword, role, rollNo });
         res.json({ status: "success" });
-    } catch (e) { res.status(500).json({ message: "Error: User exists" }); }
+    } catch (e) { res.status(500).json({ message: "Server error creating user" }); }
 });
 
 app.post('/admin/add-schedule', verifyToken, async (req, res) => {
@@ -221,7 +227,7 @@ app.post('/submit-liveness', verifyToken, (req, res) => {
     const session = ACTIVE_SESSIONS[cleanTID];
     const studentHash = req.user.id;
     if (session?.quizActive && answer === session.quizAnswer) {
-        session.sessionEvidence[studentHash].liveness = true;
+        if(session.sessionEvidence[studentHash]) session.sessionEvidence[studentHash].liveness = true;
         return res.json({ status: "verified" });
     }
     res.status(400).send("Invalid Answer");
@@ -259,19 +265,16 @@ app.post('/save-final-attendance', verifyToken, async (req, res) => {
     res.json({ status: "success" });
 });
 
-// --- DASHBOARD ROUTE (LIVE MESH UPDATE) ---
+// --- DASHBOARD ROUTE ---
 
 app.get('/dashboard', verifyToken, async (req, res) => {
     if (req.user.role !== 'admin') return res.status(403).send("Admins Only");
     
-    // Get limit from URL (e.g., /dashboard?limit=50), default to 10
     const logLimit = parseInt(req.query.limit) || 10;
-    
     const users = await User.find({});
     const logs = await CorrectionLog.find({}).sort({timestamp: -1}).limit(logLimit);
     const token = req.query.token;
 
-    // --- LIVE MESH CONTENT ---
     const liveMeshRows = Object.keys(ACTIVE_SESSIONS).map(tID => {
         const session = ACTIVE_SESSIONS[tID];
         const students = Object.values(session.sessionEvidence).map(s => s.rollNo).join(', ');
@@ -313,7 +316,7 @@ app.get('/dashboard', verifyToken, async (req, res) => {
         .replace('{{LIVE_MESH}}', liveMeshRows)
         .replace('{{USER_LIST}}', userRows)
         .replace('{{CORRECTION_LOGS}}', logRows)
-        .replace('{{CURRENT_LIMIT}}', logLimit) // Pass the current limit back to UI
+        .replace('{{CURRENT_LIMIT}}', logLimit)
         .replace(/{{THRESHOLD}}/g, GLOBAL_SETTINGS.threshold)
         .replace(/{{TOKEN}}/g, token);
     

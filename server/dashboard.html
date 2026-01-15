@@ -39,10 +39,6 @@
         .slider-container { display: flex; align-items: center; gap: 20px; background: #f8f9fa; padding: 20px; border-radius: 12px; border: 1px dashed #cbd5e0; }
         input[type=range] { flex-grow: 1; cursor: pointer; height: 8px; border-radius: 5px; background: #ddd; outline: none; -webkit-appearance: none; appearance: none; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; background: #1a73e8; border-radius: 50%; cursor: pointer; }
-        
-        /* Log Styling */
-        .log-table { font-size: 13px; }
-        .log-table b { color: #d32f2f; }
     </style>
 </head>
 <body>
@@ -51,7 +47,6 @@
 
         <div class="card" style="border-top: 5px solid #34a853; background: #fafffb;">
             <h2>📡 Live Mesh Monitor</h2>
-            <p style="font-size: 0.85rem; color: #666; margin-bottom: 15px;">Real-time status of active classes and student connectivity.</p>
             <div id="liveMeshContent">
                 {{LIVE_MESH}}
             </div>
@@ -59,7 +54,6 @@
         
         <div class="card" style="border-top: 5px solid #1a73e8;">
             <h2>⚙️ RSSI Similarity Threshold</h2>
-            <p style="font-size: 0.9rem; color: #666; margin-bottom: 20px;">Defines the strictness of the WiFi fingerprint match (Standard: 10-20%).</p>
             <div class="slider-container">
                 <input type="range" id="thresholdSlider" min="0" max="100" value="{{THRESHOLD}}" 
                        oninput="updateThresholdText(this.value)" 
@@ -68,20 +62,33 @@
             </div>
         </div>
 
+        <div class="card" style="border-top: 5px solid #1a73e8;">
+            <h2>➕ Add New Identity</h2>
+            <div class="form-row">
+                <input type="text" id="newUsername" placeholder="Username (Unique)">
+                <input type="text" id="newRoll" placeholder="Roll No / ID">
+                <select id="newRole">
+                    <option value="student">Student</option>
+                    <option value="teacher">Teacher</option>
+                    <option value="admin">Admin</option>
+                </select>
+                <input type="password" id="newPass" placeholder="Password">
+                <button class="btn-add" onclick="addUser()">Create</button>
+            </div>
+        </div>
+
         <div class="card" style="border-top: 5px solid #ef6c00;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <h2>📜 Manual Correction Logs</h2>
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <label style="font-size: 0.8rem; color: #666;">Show Recent:</label>
-                    <select id="logLimit" onchange="updateLogLimit(this.value)" style="padding: 5px; border-radius: 5px; border: 1px solid #ddd;">
-                        <option value="10" ${'{{CURRENT_LIMIT}}' == '10' ? 'selected' : ''}>10 Entries</option>
-                        <option value="25" ${'{{CURRENT_LIMIT}}' == '25' ? 'selected' : ''}>25 Entries</option>
-                        <option value="50" ${'{{CURRENT_LIMIT}}' == '50' ? 'selected' : ''}>50 Entries</option>
-                        <option value="100" ${'{{CURRENT_LIMIT}}' == '100' ? 'selected' : ''}>100 Entries</option>
+                    <select id="logLimit" onchange="updateLogLimit(this.value)">
+                        <option value="10" ${'{{CURRENT_LIMIT}}' == '10' ? 'selected' : ''}>10</option>
+                        <option value="25" ${'{{CURRENT_LIMIT}}' == '25' ? 'selected' : ''}>25</option>
+                        <option value="50" ${'{{CURRENT_LIMIT}}' == '50' ? 'selected' : ''}>50</option>
                     </select>
                 </div>
             </div>
-            <p style="font-size: 0.85rem; color: #666; margin-bottom: 15px;">Audit trail for every status override performed by teaching staff.</p>
             <div style="max-height: 300px; overflow-y: auto;">
                 <table class="log-table">
                     <thead>
@@ -121,6 +128,28 @@
             });
         }
 
+        async function addUser() {
+            const data = {
+                username: document.getElementById('newUsername').value.trim(),
+                rollNo: document.getElementById('newRoll').value.trim(),
+                role: document.getElementById('newRole').value,
+                password: document.getElementById('newPass').value
+            };
+            if(!data.username || !data.password) return alert("Missing required fields.");
+            const res = await fetch('/admin/add-user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': '{{TOKEN}}' },
+                body: JSON.stringify(data)
+            });
+            if(res.ok) {
+                alert("Identity Created.");
+                location.reload();
+            } else {
+                const err = await res.json();
+                alert("Error: " + err.message);
+            }
+        }
+
         function updateLogLimit(val) {
             const urlParams = new URLSearchParams(window.location.search);
             const token = urlParams.get('token');
@@ -156,7 +185,6 @@
                 location.reload();
             }
         }
-
         setTimeout(() => location.reload(), 30000);
     </script>
 </body>
