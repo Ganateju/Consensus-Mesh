@@ -1,0 +1,8 @@
+# Server
+server/node_modules/
+server/.env
+
+# Flutter
+student app/.dart_tool/
+student app/.packages
+student app/build/
