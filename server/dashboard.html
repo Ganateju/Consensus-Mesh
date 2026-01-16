@@ -9,22 +9,18 @@
         h1 { color: #1a73e8; margin-bottom: 30px; font-weight: 300; letter-spacing: -1px; }
         h2 { margin-top: 0; display: flex; align-items: center; gap: 10px; font-size: 1.1rem; color: #555; text-transform: uppercase; letter-spacing: 1px; }
         
-        /* Form Styling */
         .form-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr auto; gap: 12px; margin-top: 15px; }
         input, select { padding: 12px; border: 1px solid #dee2e6; border-radius: 8px; font-size: 14px; outline: none; transition: 0.2s; }
         input:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26,115,232,0.1); }
         
-        /* Table Styling */
         #searchInput { width: 100%; padding: 15px; margin-bottom: 20px; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; font-size: 16px; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th { background: #f8f9fa; text-align: left; padding: 15px; border-bottom: 2px solid #dee2e6; color: #666; font-size: 13px; }
         td { padding: 15px; border-bottom: 1px solid #eee; font-size: 14px; }
         
-        /* Components */
         .badge { padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: bold; text-transform: uppercase; }
         .teacher { background: #e3f2fd; color: #1565c0; }
         .student { background: #e8f5e9; color: #2e7d32; }
-        .admin { background: #fff3e0; color: #ef6c00; }
         
         .btn-add { background: #1a73e8; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; }
         .btn-add:hover { background: #1557b0; }
@@ -35,30 +31,30 @@
         .slider-container { display: flex; align-items: center; gap: 20px; background: #f8f9fa; padding: 20px; border-radius: 12px; border: 1px dashed #cbd5e0; }
         input[type=range] { flex-grow: 1; cursor: pointer; }
         
-        .mesh-box { padding: 10px; background: #f0f4ff; border-left: 4px solid #1a73e8; margin-bottom: 10px; border-radius: 4px; font-size: 0.9rem; }
+        .mesh-box { padding: 15px; background: #f0f4ff; border-left: 5px solid #1a73e8; margin-bottom: 15px; border-radius: 8px; }
     </style>
 </head>
 <body>
     <div class="container">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <h1>Consensus Mesh | Admin Console</h1>
-            <button class="btn-add" onclick="window.open('/admin/export-attendance?token={{TOKEN}}')" style="background: #34a853;">📥 Download Master Report (CSV)</button>
+            <button class="btn-add" onclick="window.open('/admin/export-attendance?token={{TOKEN}}')" style="background: #34a853;">📥 Master Export (CSV)</button>
         </div>
 
         <div class="card" style="border-top: 5px solid #34a853;">
-            <h2>📡 Live Mesh & Active Classes</h2>
+            <h2>📡 Live Mesh Monitor</h2>
             <div id="liveMeshContent">
                 {{LIVE_MESH}}
             </div>
         </div>
         
         <div class="card" style="border-top: 5px solid #1a73e8;">
-            <h2>⚙️ System Threshold</h2>
+            <h2>⚙️ RSSI Similarity Threshold</h2>
             <div class="slider-container">
                 <input type="range" id="thresholdSlider" min="0" max="100" value="{{THRESHOLD}}" 
-                       oninput="updateThresholdText(this.value)" 
+                       oninput="document.getElementById('thresholdVal').innerText = this.value + '%'" 
                        onchange="saveThreshold(this.value)">
-                <b id="thresholdVal" style="font-size: 1.5rem; color: #1a73e8;">{{THRESHOLD}}%</b>
+                <b id="thresholdVal" style="font-size: 1.5rem; color: #1a73e8; min-width: 60px;">{{THRESHOLD}}%</b>
             </div>
         </div>
 
@@ -68,10 +64,7 @@
                 <input type="text" id="newUsername" placeholder="Name">
                 <input type="text" id="newRoll" placeholder="Roll No">
                 <input type="text" id="newDept" placeholder="Dept (e.g. ECE-A)">
-                <select id="newRole">
-                    <option value="student">Student</option>
-                    <option value="teacher">Teacher</option>
-                </select>
+                <select id="newRole"><option value="student">Student</option><option value="teacher">Teacher</option></select>
                 <input type="password" id="newPass" placeholder="Password">
                 <button class="btn-add" onclick="addUser()">Create</button>
             </div>
@@ -79,8 +72,8 @@
 
         <div class="card" style="border-top: 5px solid #f1c40f;">
             <h2>📅 Master Scheduler</h2>
-            <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr 1fr 1fr auto;">
-                <input type="text" id="schTeacher" placeholder="Teacher User">
+            <div class="form-row">
+                <input type="text" id="schTeacher" placeholder="Teacher Username">
                 <input type="text" id="schClass" placeholder="Class (e.g. ECE-A)">
                 <select id="schDay">
                     <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
@@ -92,9 +85,23 @@
             </div>
         </div>
 
+        <div class="card" style="border-top: 5px solid #ef6c00;">
+            <h2>📜 Manual Correction Logs</h2>
+            <div style="max-height: 250px; overflow-y: auto;">
+                <table>
+                    <thead>
+                        <tr><th>Teacher</th><th>Student ID</th><th>Modification</th><th>Timestamp</th></tr>
+                    </thead>
+                    <tbody>
+                        {{CORRECTION_LOGS}}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <div class="card">
-            <h2>👥 Directory Management</h2>
-            <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Search names, departments, or roles...">
+            <h2>👥 Identity Management</h2>
+            <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Search directory...">
             <table id="userTable">
                 <thead>
                     <tr><th>Name</th><th>Roll No</th><th>Dept</th><th>Role</th><th>Actions</th></tr>
@@ -107,8 +114,6 @@
     </div>
 
     <script>
-        function updateThresholdText(val) { document.getElementById('thresholdVal').innerText = val + "%"; }
-
         async function saveThreshold(val) {
             await fetch('/admin/update-settings', {
                 method: 'POST',
@@ -130,7 +135,7 @@
                 headers: { 'Content-Type': 'application/json', 'Authorization': '{{TOKEN}}' },
                 body: JSON.stringify(data)
             });
-            if(res.ok) { alert("Identity Created."); location.reload(); }
+            if(res.ok) location.reload();
         }
 
         async function addSchedule() {
@@ -146,11 +151,11 @@
                 headers: { 'Content-Type': 'application/json', 'Authorization': '{{TOKEN}}' },
                 body: JSON.stringify(data)
             });
-            if(res.ok) { alert("Schedule Added!"); location.reload(); }
+            if(res.ok) { alert("Schedule Updated!"); location.reload(); }
         }
 
         async function deleteUser(id) {
-            if (confirm("Delete this user?")) {
+            if (confirm("Delete user?")) {
                 await fetch('/admin/delete-user', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': '{{TOKEN}}' },
@@ -167,7 +172,7 @@
                 tr[i].style.display = tr[i].innerText.toUpperCase().includes(input) ? "" : "none";
             }
         }
-        setTimeout(() => location.reload(), 30000);
+        setTimeout(() => location.reload(), 20000); // Auto-refresh for Live Mesh
     </script>
 </body>
 </html>
