@@ -10,7 +10,7 @@
         h2 { margin-top: 0; display: flex; align-items: center; gap: 10px; font-size: 1.1rem; color: #555; text-transform: uppercase; letter-spacing: 1px; }
         
         /* Form Styling */
-        .form-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap: 12px; margin-top: 15px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr auto; gap: 12px; margin-top: 15px; }
         input, select { padding: 12px; border: 1px solid #dee2e6; border-radius: 8px; font-size: 14px; outline: none; transition: 0.2s; }
         input:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26,115,232,0.1); }
         
@@ -32,81 +32,72 @@
         .btn-del { color: #d32f2f; border: 1px solid #fadbd8; padding: 8px 14px; border-radius: 6px; cursor: pointer; background: #fdedec; font-size: 12px; transition: 0.2s; }
         .btn-del:hover { background: #d32f2f; color: white; }
 
-        .btn-clear { background: #fff4f4; color: #c0392b; border: 1px solid #f5b7b1; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; margin-left: 5px; }
-        .btn-clear:hover { background: #c0392b; color: white; }
-
-        /* Slider Styling */
         .slider-container { display: flex; align-items: center; gap: 20px; background: #f8f9fa; padding: 20px; border-radius: 12px; border: 1px dashed #cbd5e0; }
-        input[type=range] { flex-grow: 1; cursor: pointer; height: 8px; border-radius: 5px; background: #ddd; outline: none; -webkit-appearance: none; appearance: none; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; background: #1a73e8; border-radius: 50%; cursor: pointer; }
+        input[type=range] { flex-grow: 1; cursor: pointer; }
+        
+        .mesh-box { padding: 10px; background: #f0f4ff; border-left: 4px solid #1a73e8; margin-bottom: 10px; border-radius: 4px; font-size: 0.9rem; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Consensus Mesh | Admin Console</h1>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h1>Consensus Mesh | Admin Console</h1>
+            <button class="btn-add" onclick="window.open('/admin/export-attendance?token={{TOKEN}}')" style="background: #34a853;">📥 Download Master Report (CSV)</button>
+        </div>
 
-        <div class="card" style="border-top: 5px solid #34a853; background: #fafffb;">
-            <h2>📡 Live Mesh Monitor</h2>
+        <div class="card" style="border-top: 5px solid #34a853;">
+            <h2>📡 Live Mesh & Active Classes</h2>
             <div id="liveMeshContent">
                 {{LIVE_MESH}}
             </div>
         </div>
         
         <div class="card" style="border-top: 5px solid #1a73e8;">
-            <h2>⚙️ RSSI Similarity Threshold</h2>
+            <h2>⚙️ System Threshold</h2>
             <div class="slider-container">
                 <input type="range" id="thresholdSlider" min="0" max="100" value="{{THRESHOLD}}" 
                        oninput="updateThresholdText(this.value)" 
                        onchange="saveThreshold(this.value)">
-                <b id="thresholdVal" style="font-size: 1.5rem; color: #1a73e8; min-width: 60px;">{{THRESHOLD}}%</b>
+                <b id="thresholdVal" style="font-size: 1.5rem; color: #1a73e8;">{{THRESHOLD}}%</b>
             </div>
         </div>
 
         <div class="card" style="border-top: 5px solid #1a73e8;">
-            <h2>➕ Add New Identity</h2>
+            <h2>➕ Register New Identity</h2>
             <div class="form-row">
-                <input type="text" id="newUsername" placeholder="Username (Unique)">
-                <input type="text" id="newRoll" placeholder="Roll No / ID">
+                <input type="text" id="newUsername" placeholder="Name">
+                <input type="text" id="newRoll" placeholder="Roll No">
+                <input type="text" id="newDept" placeholder="Dept (e.g. ECE-A)">
                 <select id="newRole">
                     <option value="student">Student</option>
                     <option value="teacher">Teacher</option>
-                    <option value="admin">Admin</option>
                 </select>
                 <input type="password" id="newPass" placeholder="Password">
                 <button class="btn-add" onclick="addUser()">Create</button>
             </div>
         </div>
 
-        <div class="card" style="border-top: 5px solid #ef6c00;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <h2>📜 Manual Correction Logs</h2>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <label style="font-size: 0.8rem; color: #666;">Show Recent:</label>
-                    <select id="logLimit" onchange="updateLogLimit(this.value)">
-                        <option value="10" ${'{{CURRENT_LIMIT}}' == '10' ? 'selected' : ''}>10</option>
-                        <option value="25" ${'{{CURRENT_LIMIT}}' == '25' ? 'selected' : ''}>25</option>
-                        <option value="50" ${'{{CURRENT_LIMIT}}' == '50' ? 'selected' : ''}>50</option>
-                    </select>
-                </div>
-            </div>
-            <div style="max-height: 300px; overflow-y: auto;">
-                <table class="log-table">
-                    <thead>
-                        <tr><th>Teacher</th><th>Student ID</th><th>Modification</th><th>Timestamp</th></tr>
-                    </thead>
-                    <tbody>
-                        {{CORRECTION_LOGS}}
-                    </tbody>
-                </table>
+        <div class="card" style="border-top: 5px solid #f1c40f;">
+            <h2>📅 Master Scheduler</h2>
+            <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr 1fr 1fr auto;">
+                <input type="text" id="schTeacher" placeholder="Teacher User">
+                <input type="text" id="schClass" placeholder="Class (e.g. ECE-A)">
+                <select id="schDay">
+                    <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
+                    <option>Thursday</option><option>Friday</option><option>Saturday</option>
+                </select>
+                <input type="time" id="schStart">
+                <input type="time" id="schEnd">
+                <button class="btn-add" onclick="addSchedule()" style="background:#f1c40f; color:#333;">Add Slot</button>
             </div>
         </div>
 
         <div class="card">
-            <h2>👥 Identity Management</h2>
-            <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Search directory...">
+            <h2>👥 Directory Management</h2>
+            <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Search names, departments, or roles...">
             <table id="userTable">
                 <thead>
-                    <tr><th>Username</th><th>Roll/ID</th><th>Role</th><th>Actions</th></tr>
+                    <tr><th>Name</th><th>Roll No</th><th>Dept</th><th>Role</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
                     {{USER_LIST}}
@@ -116,9 +107,7 @@
     </div>
 
     <script>
-        function updateThresholdText(val) {
-            document.getElementById('thresholdVal').innerText = val + "%";
-        }
+        function updateThresholdText(val) { document.getElementById('thresholdVal').innerText = val + "%"; }
 
         async function saveThreshold(val) {
             await fetch('/admin/update-settings', {
@@ -132,36 +121,40 @@
             const data = {
                 username: document.getElementById('newUsername').value.trim(),
                 rollNo: document.getElementById('newRoll').value.trim(),
+                department: document.getElementById('newDept').value.trim(),
                 role: document.getElementById('newRole').value,
                 password: document.getElementById('newPass').value
             };
-            if(!data.username || !data.password) return alert("Missing required fields.");
             const res = await fetch('/admin/add-user', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': '{{TOKEN}}' },
                 body: JSON.stringify(data)
             });
-            if(res.ok) {
-                alert("Identity Created.");
-                location.reload();
-            } else {
-                const err = await res.json();
-                alert("Error: " + err.message);
-            }
+            if(res.ok) { alert("Identity Created."); location.reload(); }
         }
 
-        function updateLogLimit(val) {
-            const urlParams = new URLSearchParams(window.location.search);
-            const token = urlParams.get('token');
-            window.location.href = `/dashboard?token=${token}&limit=${val}`;
+        async function addSchedule() {
+            const data = {
+                teacherID: document.getElementById('schTeacher').value,
+                className: document.getElementById('schClass').value,
+                day: document.getElementById('schDay').value,
+                startTime: document.getElementById('schStart').value,
+                endTime: document.getElementById('schEnd').value
+            };
+            const res = await fetch('/admin/add-schedule', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': '{{TOKEN}}' },
+                body: JSON.stringify(data)
+            });
+            if(res.ok) { alert("Schedule Added!"); location.reload(); }
         }
 
-        async function clearSchedules(tID) {
-            if (confirm(`CRITICAL: Wipe all registered schedules for ${tID}?`)) {
-                await fetch('/admin/clear-schedules', {
+        async function deleteUser(id) {
+            if (confirm("Delete this user?")) {
+                await fetch('/admin/delete-user', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': '{{TOKEN}}' },
-                    body: JSON.stringify({ teacherID: tID.toLowerCase().trim() })
+                    body: JSON.stringify({ id })
                 });
                 location.reload();
             }
@@ -172,17 +165,6 @@
             let tr = document.getElementById("userTable").getElementsByTagName("tr");
             for (let i = 1; i < tr.length; i++) {
                 tr[i].style.display = tr[i].innerText.toUpperCase().includes(input) ? "" : "none";
-            }
-        }
-
-        async function deleteUser(id) {
-            if (confirm("Permanently delete this user?")) {
-                await fetch('/admin/delete-user', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': '{{TOKEN}}' },
-                    body: JSON.stringify({ id })
-                });
-                location.reload();
             }
         }
         setTimeout(() => location.reload(), 30000);

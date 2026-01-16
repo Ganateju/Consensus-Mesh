@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:wifi_scan/wifi_scan.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sensors_plus/sensors_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 void main() => runApp(const MaterialApp(
@@ -21,7 +20,8 @@ class AttendanceApp extends StatefulWidget {
 class _AttendanceAppState extends State<AttendanceApp> {
   final TextEditingController _userController = TextEditingController();
   final TextEditingController _passController = TextEditingController();
-  final TextEditingController _roomController = TextEditingController();
+  final TextEditingController _roomController = TextEditingController(); // Uses for TeacherID
+  final TextEditingController _schClassController = TextEditingController(); // NEW: For Class Name
   final TextEditingController _startTimeController = TextEditingController();
   final TextEditingController _endTimeController = TextEditingController();
   final TextEditingController _quizAnswerController = TextEditingController();
@@ -29,10 +29,10 @@ class _AttendanceAppState extends State<AttendanceApp> {
   String? userRole, savedID, jwtToken;
   String status = "Ready";
   String currentQuestion = "Waiting for challenge...";
+  String currentClass = "General";
   Timer? _timer;
   bool _quizVisible = false;
   
-  // Update this to your ACTUAL Render URL
   final String serverUrl = "https://server-2whc.onrender.com";
 
   @override
@@ -53,9 +53,7 @@ class _AttendanceAppState extends State<AttendanceApp> {
   Future<void> login() async {
     setState(() => status = "Authorizing...");
     try {
-      // Normalization: Ensure lowercase for consistency with DB
       String cleanUser = _userController.text.toLowerCase().trim();
-      
       final res = await http.post(Uri.parse('$serverUrl/login'),
           headers: {"Content-Type": "application/json"},
           body: jsonEncode({"username": cleanUser, "password": _passController.text}));
@@ -119,8 +117,16 @@ class _AttendanceAppState extends State<AttendanceApp> {
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         setState(() => status = "Proximity Verified ✅");
+        
+        // Handle 3-Second Liveness Challenge
         if (data['quizActive'] == true && !_quizVisible) {
           setState(() { currentQuestion = data['quizQuestion']; _quizVisible = true; });
+          
+          Timer(const Duration(seconds: 3), () {
+            if (mounted && _quizVisible) {
+              setState(() { _quizVisible = false; _quizAnswerController.clear(); });
+            }
+          });
         }
       } else {
         setState(() => status = "Out of Range or Session Ended");
@@ -128,44 +134,42 @@ class _AttendanceAppState extends State<AttendanceApp> {
     });
   }
 
-  void _showReviewDialog(List problemStudents) {
+  void _showReviewDialog(List problemStudents, String className) {
     List corrections = [];
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text("Mesh Review Required"),
+          title: Text("Mesh Review: $className"),
           content: SizedBox(
             width: double.maxFinite,
             height: 350,
-            child: problemStudents.isEmpty 
-              ? const Center(child: Text("All students verified successfully!"))
-              : ListView.builder(
-                itemCount: problemStudents.length,
-                itemBuilder: (context, i) {
-                  return Card(
-                    child: ListTile(
-                      title: Text("Roll: ${problemStudents[i]['rollNo']}"),
-                      subtitle: Text("Similarity: ${problemStudents[i]['rfStability']}%"),
-                      trailing: DropdownButton<String>(
-                        value: problemStudents[i]['status'],
-                        items: ["PRESENT", "ABSENT", "PARTIAL"].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                        onChanged: (newVal) {
-                          setDialogState(() {
-                            corrections.add({
-                              "rollNo": problemStudents[i]['rollNo'],
-                              "oldStatus": problemStudents[i]['status'],
-                              "newStatus": newVal
-                            });
-                            problemStudents[i]['status'] = newVal;
+            child: ListView.builder(
+              itemCount: problemStudents.length,
+              itemBuilder: (context, i) {
+                return Card(
+                  child: ListTile(
+                    title: Text("Roll: ${problemStudents[i]['rollNo']}"),
+                    subtitle: Text("Status: ${problemStudents[i]['status']} (${problemStudents[i]['rfStability']}%)"),
+                    trailing: DropdownButton<String>(
+                      value: problemStudents[i]['status'],
+                      items: ["PRESENT", "ABSENT", "PARTIAL"].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                      onChanged: (newVal) {
+                        setDialogState(() {
+                          corrections.add({
+                            "rollNo": problemStudents[i]['rollNo'],
+                            "oldStatus": problemStudents[i]['status'],
+                            "newStatus": newVal
                           });
-                        },
-                      ),
+                          problemStudents[i]['status'] = newVal;
+                        });
+                      },
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
+            ),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text("CANCEL")),
@@ -174,11 +178,14 @@ class _AttendanceAppState extends State<AttendanceApp> {
               onPressed: () async {
                 await http.post(Uri.parse('$serverUrl/save-final-attendance'),
                   headers: {"Content-Type": "application/json", "Authorization": jwtToken!},
-                  body: jsonEncode({ "finalAttendance": problemStudents, "corrections": corrections }));
+                  body: jsonEncode({ "finalAttendance": problemStudents, "className": className }));
                 Navigator.pop(context);
                 setState(() => status = "Report Synced ✅");
+                
+                // AUTO-EXPORT TO EXCEL AFTER SYNC
+                launchUrl(Uri.parse('$serverUrl/admin/export-attendance?token=$jwtToken'), mode: LaunchMode.externalApplication);
               },
-              child: const Text("SUBMIT FINAL", style: TextStyle(color: Colors.white)),
+              child: const Text("SAVE & EXPORT", style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -218,19 +225,20 @@ class _AttendanceAppState extends State<AttendanceApp> {
               headers: {"Content-Type": "application/json", "Authorization": jwtToken!}, 
               body: jsonEncode({"wifi": w}));
           if (res.statusCode == 200) {
-            setState(() => status = "Mesh Active ✅");
+            var d = jsonDecode(res.body);
+            setState(() { status = "Mesh Active: ${d['className']} ✅"; currentClass = d['className']; });
           } else {
-            var error = jsonDecode(res.body);
-            setState(() => status = error['message'] ?? "Check Schedule");
+            setState(() => status = "Check Schedule or IST Time");
           }
         }),
         const SizedBox(height: 20),
-        _actionButton(Icons.bolt, "PUSH LIVENESS CHECK", Colors.red, () => http.post(Uri.parse('$serverUrl/trigger-quiz'), headers: {"Authorization": jwtToken!})),
+        _actionButton(Icons.bolt, "PUSH 3s LIVENESS CHECK", Colors.red, () => http.post(Uri.parse('$serverUrl/trigger-quiz'), headers: {"Authorization": jwtToken!})),
         const SizedBox(height: 20),
-        _actionButton(Icons.cloud_upload, "SYNC TO SERVER", Colors.green, () async {
+        _actionButton(Icons.cloud_upload, "SYNC & DETECT ABSENTEES", Colors.green, () async {
           final res = await http.post(Uri.parse('$serverUrl/finalize-session'), headers: {"Authorization": jwtToken!});
           if (res.statusCode == 200) {
-            _showReviewDialog(jsonDecode(res.body)['reviewList']);
+            var data = jsonDecode(res.body);
+            _showReviewDialog(data['reviewList'], data['className']);
           }
         }),
         const SizedBox(height: 40),
@@ -239,7 +247,8 @@ class _AttendanceAppState extends State<AttendanceApp> {
     } else if (userRole == 'admin') {
       return SingleChildScrollView(padding: const EdgeInsets.all(25), child: Column(children: [
         _adminField(_roomController, "Teacher Username"),
-        _adminField(_passController, "Day (Monday...)"),
+        _adminField(_schClassController, "Class Name (e.g. ECE-A)"),
+        _adminField(_passController, "Day (e.g. Monday)"),
         Row(children: [
           Expanded(child: _adminField(_startTimeController, "Start (HH:mm)")),
           const SizedBox(width: 10),
@@ -250,20 +259,21 @@ class _AttendanceAppState extends State<AttendanceApp> {
           await http.post(Uri.parse('$serverUrl/admin/add-schedule'), headers: {"Content-Type": "application/json", "Authorization": jwtToken!}, 
           body: jsonEncode({
             "teacherID": _roomController.text.toLowerCase().trim(), 
+            "className": _schClassController.text.toUpperCase().trim(),
             "day": _passController.text.trim(), 
             "startTime": _startTimeController.text.trim(), 
             "endTime": _endTimeController.text.trim()
           }));
           setState(() => status = "Schedule Synced!");
-        }, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 60), backgroundColor: Colors.deepOrange), child: const Text("COMMIT TO DB", style: TextStyle(color: Colors.white))),
+        }, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 60), backgroundColor: Colors.deepOrange), child: const Text("COMMIT SCHEDULE", style: TextStyle(color: Colors.white))),
         const SizedBox(height: 30),
-        _actionButton(Icons.dashboard_customize, "OPEN ADMIN CONSOLE", Colors.blueGrey, () => launchUrl(Uri.parse('$serverUrl/dashboard?token=$jwtToken'), mode: LaunchMode.externalApplication)),
+        _actionButton(Icons.dashboard_customize, "OPEN WEB CONSOLE", Colors.blueGrey, () => launchUrl(Uri.parse('$serverUrl/dashboard?token=$jwtToken'), mode: LaunchMode.externalApplication)),
       ]));
     } else {
       return Center(child: Padding(padding: const EdgeInsets.all(30), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         const Icon(Icons.location_searching, size: 80, color: Colors.indigo),
         const SizedBox(height: 40),
-        ElevatedButton.icon(icon: const Icon(Icons.qr_code_scanner), label: const Text("JOIN CLASS MESH"), onPressed: autoDiscoverAndJoin, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 80), backgroundColor: Colors.indigo, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)))),
+        ElevatedButton.icon(icon: const Icon(Icons.radar), label: const Text("JOIN CLASS MESH"), onPressed: autoDiscoverAndJoin, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 80), backgroundColor: Colors.indigo, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)))),
         const SizedBox(height: 30),
         Text(status, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.indigo)),
       ])));
