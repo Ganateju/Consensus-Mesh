@@ -87,7 +87,7 @@ Where $S_v$ represents the Student's normalized signal vector and $T_v$ represen
 
 ## 🚀 Getting Started
 
-1. **Download APK:** Get the latest build from the [Releases](https://github.com/Ganateju/Consensus-Mesh/releases/tag/v1.0.0) section.
+1. **Download APK:** Get the latest build from the [Releases](https://github.com/Ganateju/Consensus-Mesh/releases/tag/v1.1.0) section.
 2. **Permissions:** Grant Location permissions (required for WiFi scanning on Android).
 3. **Credentials:** Use the unique ID and Password assigned by your administrator.
 
