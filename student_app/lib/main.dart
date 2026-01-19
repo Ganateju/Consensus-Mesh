@@ -6,6 +6,12 @@ import 'package:wifi_scan/wifi_scan.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+/**
+ * Consensus Mesh Client Application
+ * Handles environmental fingerprinting, real-time proximity auditing,
+ * and liveness challenge verification.
+ */
+
 void main() => runApp(const MaterialApp(
       home: AttendanceApp(),
       debugShowCheckedModeBanner: false,
@@ -18,14 +24,16 @@ class AttendanceApp extends StatefulWidget {
 }
 
 class _AttendanceAppState extends State<AttendanceApp> {
+  // Input Controllers for Auth and Scheduling
   final TextEditingController _userController = TextEditingController();
   final TextEditingController _passController = TextEditingController();
-  final TextEditingController _roomController = TextEditingController(); // Uses for TeacherID
-  final TextEditingController _schClassController = TextEditingController(); // NEW: For Class Name
+  final TextEditingController _roomController = TextEditingController(); 
+  final TextEditingController _schClassController = TextEditingController(); 
   final TextEditingController _startTimeController = TextEditingController();
   final TextEditingController _endTimeController = TextEditingController();
   final TextEditingController _quizAnswerController = TextEditingController();
 
+  // Session State
   String? userRole, savedID, jwtToken;
   String status = "Ready";
   String currentQuestion = "Waiting for challenge...";
@@ -33,6 +41,7 @@ class _AttendanceAppState extends State<AttendanceApp> {
   Timer? _timer;
   bool _quizVisible = false;
   
+  // Update this to your deployed Render/Heroku URL
   final String serverUrl = "https://server-2whc.onrender.com";
 
   @override
@@ -41,6 +50,7 @@ class _AttendanceAppState extends State<AttendanceApp> {
     _checkLogin();
   }
 
+  // Persistence Handler
   _checkLogin() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -69,15 +79,17 @@ class _AttendanceAppState extends State<AttendanceApp> {
         setState(() => status = "Login Failed: Check Credentials");
       }
     } catch (e) {
-      setState(() => status = "Server Offline or Network Error");
+      setState(() => status = "Connection Error: Check Server");
     }
   }
 
+  // 📡 Environmental Mesh Scanner
   Future<Map<String, int>> _getWifi() async {
     final canScan = await WiFiScan.instance.canStartScan();
     if (canScan != CanStartScan.yes) return {};
     await WiFiScan.instance.startScan();
     final results = await WiFiScan.instance.getScannedResults();
+    // Maps SSIDs to their respective RSSI levels for pattern matching
     return {for (var r in results) if (r.ssid.isNotEmpty) r.ssid: r.level};
   }
 
@@ -102,6 +114,7 @@ class _AttendanceAppState extends State<AttendanceApp> {
     } catch (e) { setState(() => status = "Network Error"); }
   }
 
+  // Maintains a "Heartbeat" of mesh evidence while class is in session
   void startHybridContinuity(String targetTeacher) {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 10), (t) async {
@@ -118,10 +131,9 @@ class _AttendanceAppState extends State<AttendanceApp> {
         final data = jsonDecode(res.body);
         setState(() => status = "Proximity Verified ✅");
         
-        // Handle 3-Second Liveness Challenge
+        // Handles real-time liveness triggers from the teacher
         if (data['quizActive'] == true && !_quizVisible) {
           setState(() { currentQuestion = data['quizQuestion']; _quizVisible = true; });
-          
           Timer(const Duration(seconds: 3), () {
             if (mounted && _quizVisible) {
               setState(() { _quizVisible = false; _quizAnswerController.clear(); });
@@ -134,41 +146,51 @@ class _AttendanceAppState extends State<AttendanceApp> {
     });
   }
 
-  void _showReviewDialog(List problemStudents, String className) {
-    List corrections = [];
+  // 🛡️ Review Dialog (The Correction Engine)
+  void _showReviewDialog(List exceptions, List fullList, String className) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text("Mesh Review: $className"),
+          title: Text("Shield Exceptions: $className"),
           content: SizedBox(
             width: double.maxFinite,
-            height: 350,
-            child: ListView.builder(
-              itemCount: problemStudents.length,
-              itemBuilder: (context, i) {
-                return Card(
-                  child: ListTile(
-                    title: Text("Roll: ${problemStudents[i]['rollNo']}"),
-                    subtitle: Text("Status: ${problemStudents[i]['status']} (${problemStudents[i]['rfStability']}%)"),
-                    trailing: DropdownButton<String>(
-                      value: problemStudents[i]['status'],
-                      items: ["PRESENT", "ABSENT", "PARTIAL"].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                      onChanged: (newVal) {
-                        setDialogState(() {
-                          corrections.add({
-                            "rollNo": problemStudents[i]['rollNo'],
-                            "oldStatus": problemStudents[i]['status'],
-                            "newStatus": newVal
-                          });
-                          problemStudents[i]['status'] = newVal;
-                        });
-                      },
-                    ),
+            height: 400,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("The following students triggered the Spherical Guard:", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: exceptions.length,
+                    itemBuilder: (context, i) {
+                      String currentStatus = exceptions[i]['status'];
+                      double displacement = exceptions[i]['displacementUnits'] ?? 0.0;
+                      
+                      return Card(
+                        color: currentStatus.contains("Shield") ? Colors.red.shade50 : Colors.orange.shade50,
+                        child: ListTile(
+                          title: Text("Roll: ${exceptions[i]['rollNo']}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text("Status: $currentStatus\nDisplacement: ${displacement.toStringAsFixed(2)} units"),
+                          trailing: DropdownButton<String>(
+                            value: ["PRESENT", "ABSENT", "PARTIAL"].contains(currentStatus) ? currentStatus : "ABSENT",
+                            items: ["PRESENT", "ABSENT", "PARTIAL"].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                            onChanged: (newVal) {
+                              setDialogState(() {
+                                exceptions[i]['status'] = newVal;
+                                int idx = fullList.indexWhere((s) => s['rollNo'] == exceptions[i]['rollNo']);
+                                if (idx != -1) fullList[idx]['status'] = newVal;
+                              });
+                            },
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
+                ),
+              ],
             ),
           ),
           actions: [
@@ -178,14 +200,12 @@ class _AttendanceAppState extends State<AttendanceApp> {
               onPressed: () async {
                 await http.post(Uri.parse('$serverUrl/save-final-attendance'),
                   headers: {"Content-Type": "application/json", "Authorization": jwtToken!},
-                  body: jsonEncode({ "finalAttendance": problemStudents, "className": className }));
+                  body: jsonEncode({ "finalAttendance": fullList, "className": className }));
                 Navigator.pop(context);
-                setState(() => status = "Report Synced ✅");
-                
-                // AUTO-EXPORT TO EXCEL AFTER SYNC
+                setState(() => status = "Ledger Synced ✅");
                 launchUrl(Uri.parse('$serverUrl/admin/export-attendance?token=$jwtToken'), mode: LaunchMode.externalApplication);
               },
-              child: const Text("SAVE & EXPORT", style: TextStyle(color: Colors.white)),
+              child: const Text("FINALIZE ALL", style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -201,6 +221,7 @@ class _AttendanceAppState extends State<AttendanceApp> {
         Scaffold(
           appBar: AppBar(
             title: Text("${userRole!.toUpperCase()} CENTER"),
+            elevation: 0,
             backgroundColor: userRole == 'student' ? Colors.indigo : Colors.deepOrange,
             actions: [ IconButton(icon: const Icon(Icons.logout), onPressed: () async {
               SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -219,7 +240,7 @@ class _AttendanceAppState extends State<AttendanceApp> {
     if (userRole == 'teacher') {
       return Padding(padding: const EdgeInsets.all(25), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         _actionButton(Icons.anchor, "ANCHOR ROOM MESH", Colors.blue, () async {
-          setState(() => status = "Capturing Signal...");
+          setState(() => status = "Capturing Signal Origin...");
           final w = await _getWifi();
           final res = await http.post(Uri.parse('$serverUrl/set-master'), 
               headers: {"Content-Type": "application/json", "Authorization": jwtToken!}, 
@@ -228,17 +249,28 @@ class _AttendanceAppState extends State<AttendanceApp> {
             var d = jsonDecode(res.body);
             setState(() { status = "Mesh Active: ${d['className']} ✅"; currentClass = d['className']; });
           } else {
-            setState(() => status = "Check Schedule or IST Time");
+            setState(() => status = "Schedule Check Failed");
           }
         }),
         const SizedBox(height: 20),
         _actionButton(Icons.bolt, "PUSH 3s LIVENESS CHECK", Colors.red, () => http.post(Uri.parse('$serverUrl/trigger-quiz'), headers: {"Authorization": jwtToken!})),
         const SizedBox(height: 20),
         _actionButton(Icons.cloud_upload, "SYNC & DETECT ABSENTEES", Colors.green, () async {
+          setState(() => status = "Auditing Mesh Data...");
           final res = await http.post(Uri.parse('$serverUrl/finalize-session'), headers: {"Authorization": jwtToken!});
           if (res.statusCode == 200) {
             var data = jsonDecode(res.body);
-            _showReviewDialog(data['reviewList'], data['className']);
+            List fullList = data['reviewList'];
+            List exceptions = fullList.where((s) => s['status'] != "PRESENT").toList();
+
+            if (exceptions.isEmpty) {
+                setState(() => status = "Clean Mesh! All Present ✅");
+                await http.post(Uri.parse('$serverUrl/save-final-attendance'),
+                  headers: {"Content-Type": "application/json", "Authorization": jwtToken!},
+                  body: jsonEncode({ "finalAttendance": fullList, "className": data['className'] }));
+            } else {
+                _showReviewDialog(exceptions, fullList, data['className']);
+            }
           }
         }),
         const SizedBox(height: 40),
@@ -247,15 +279,15 @@ class _AttendanceAppState extends State<AttendanceApp> {
     } else if (userRole == 'admin') {
       return SingleChildScrollView(padding: const EdgeInsets.all(25), child: Column(children: [
         _adminField(_roomController, "Teacher Username"),
-        _adminField(_schClassController, "Class Name (e.g. ECE-A)"),
-        _adminField(_passController, "Day (e.g. Monday)"),
+        _adminField(_schClassController, "Class (e.g. ECE-A)"),
+        _adminField(_passController, "Day"),
         Row(children: [
-          Expanded(child: _adminField(_startTimeController, "Start (HH:mm)")),
+          Expanded(child: _adminField(_startTimeController, "Start")),
           const SizedBox(width: 10),
-          Expanded(child: _adminField(_endTimeController, "End (HH:mm)")),
+          Expanded(child: _adminField(_endTimeController, "End")),
         ]),
         const SizedBox(height: 10),
-        ElevatedButton(onPressed: () async {
+        _actionButton(Icons.save, "COMMIT SCHEDULE", Colors.deepOrange, () async {
           await http.post(Uri.parse('$serverUrl/admin/add-schedule'), headers: {"Content-Type": "application/json", "Authorization": jwtToken!}, 
           body: jsonEncode({
             "teacherID": _roomController.text.toLowerCase().trim(), 
@@ -264,16 +296,20 @@ class _AttendanceAppState extends State<AttendanceApp> {
             "startTime": _startTimeController.text.trim(), 
             "endTime": _endTimeController.text.trim()
           }));
-          setState(() => status = "Schedule Synced!");
-        }, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 60), backgroundColor: Colors.deepOrange), child: const Text("COMMIT SCHEDULE", style: TextStyle(color: Colors.white))),
+          setState(() => status = "Schedule Saved");
+        }),
         const SizedBox(height: 30),
-        _actionButton(Icons.dashboard_customize, "OPEN WEB CONSOLE", Colors.blueGrey, () => launchUrl(Uri.parse('$serverUrl/dashboard?token=$jwtToken'), mode: LaunchMode.externalApplication)),
+        _actionButton(Icons.web, "OPEN WEB CONSOLE", Colors.blueGrey, () => launchUrl(Uri.parse('$serverUrl/dashboard?token=$jwtToken'), mode: LaunchMode.externalApplication)),
       ]));
     } else {
       return Center(child: Padding(padding: const EdgeInsets.all(30), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        const Icon(Icons.location_searching, size: 80, color: Colors.indigo),
+        Icon(status.contains("Verified") ? Icons.verified_user : Icons.radar, size: 80, color: Colors.indigo),
         const SizedBox(height: 40),
-        ElevatedButton.icon(icon: const Icon(Icons.radar), label: const Text("JOIN CLASS MESH"), onPressed: autoDiscoverAndJoin, style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 80), backgroundColor: Colors.indigo, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)))),
+        ElevatedButton.icon(
+            icon: const Icon(Icons.location_on), 
+            label: const Text("JOIN CLASS MESH"), 
+            onPressed: autoDiscoverAndJoin, 
+            style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 80), backgroundColor: Colors.indigo, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)))),
         const SizedBox(height: 30),
         Text(status, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.indigo)),
       ])));

@@ -1,20 +1,40 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Control Center | Consensus Mesh</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; background: #f4f7f6; color: #333; line-height: 1.6; }
+        :root {
+            --primary: #1a73e8;
+            --secondary: #6c5ce7;
+            --success: #34a853;
+            --danger: #d32f2f;
+            --bg: #f4f7f6;
+        }
+
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; background: var(--bg); color: #333; line-height: 1.6; }
         .container { max-width: 1100px; margin: auto; }
-        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 30px; border: 1px solid #eef0f2; }
-        h1 { color: #1a73e8; margin-bottom: 30px; font-weight: 300; letter-spacing: -1px; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 30px; border: 1px solid #eef0f2; transition: 0.3s; }
+        
+        h1 { color: var(--primary); margin-bottom: 30px; font-weight: 300; letter-spacing: -1px; }
         h2 { margin-top: 0; display: flex; align-items: center; gap: 10px; font-size: 1.1rem; color: #555; text-transform: uppercase; letter-spacing: 1px; }
         
+        /* Layout Grid */
         .form-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr auto; gap: 12px; margin-top: 15px; }
         input, select { padding: 12px; border: 1px solid #dee2e6; border-radius: 8px; font-size: 14px; outline: none; transition: 0.2s; }
-        input:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26,115,232,0.1); }
+        input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(26,115,232,0.1); }
         
+        /* Physics Tool Styling */
+        .physics-row { display: flex; align-items: center; gap: 20px; background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 15px; transition: background 0.4s; }
+        .physics-label { flex: 1; font-weight: 600; color: #444; }
+        .physics-controls { flex: 3; display: flex; align-items: center; gap: 15px; }
+        input[type=range] { flex-grow: 1; cursor: pointer; height: 6px; background: #dfe6e9; border-radius: 5px; appearance: none; }
+        .num-input { width: 70px; text-align: center; font-weight: bold; border: 2px solid var(--secondary); color: var(--secondary); }
+
+        /* Tables & Badges */
         #searchInput { width: 100%; padding: 15px; margin-bottom: 20px; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; font-size: 16px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
         th { background: #f8f9fa; text-align: left; padding: 15px; border-bottom: 2px solid #dee2e6; color: #666; font-size: 13px; }
         td { padding: 15px; border-bottom: 1px solid #eee; font-size: 14px; }
         
@@ -22,49 +42,70 @@
         .teacher { background: #e3f2fd; color: #1565c0; }
         .student { background: #e8f5e9; color: #2e7d32; }
         
-        .btn-add { background: #1a73e8; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        .btn-add:hover { background: #1557b0; }
-        
-        .btn-del { color: #d32f2f; border: 1px solid #fadbd8; padding: 8px 14px; border-radius: 6px; cursor: pointer; background: #fdedec; font-size: 12px; transition: 0.2s; }
-        .btn-del:hover { background: #d32f2f; color: white; }
+        .btn-add { background: var(--primary); color: white; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-add:hover { background: #1557b0; transform: translateY(-1px); }
+        .btn-del { color: var(--danger); border: 1px solid #fadbd8; padding: 8px 14px; border-radius: 6px; cursor: pointer; background: #fdedec; transition: 0.2s; }
+        .btn-del:hover { background: var(--danger); color: white; }
 
-        .slider-container { display: flex; align-items: center; gap: 20px; background: #f8f9fa; padding: 20px; border-radius: 12px; border: 1px dashed #cbd5e0; }
-        input[type=range] { flex-grow: 1; cursor: pointer; }
-        
-        .mesh-box { padding: 15px; background: #f0f4ff; border-left: 5px solid #1a73e8; margin-bottom: 15px; border-radius: 8px; }
+        .mesh-box { padding: 15px; background: #f0f4ff; border-left: 5px solid var(--primary); margin-bottom: 10px; border-radius: 8px; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body>
     <div class="container">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <h1>Consensus Mesh | Admin Console</h1>
-            <button class="btn-add" onclick="window.open('/admin/export-attendance?token={{TOKEN}}')" style="background: #34a853;">📥 Master Export (CSV)</button>
+            <button class="btn-add" onclick="window.open('/admin/export-attendance?token={{TOKEN}}')" style="background: var(--success);">📥 Master Export (CSV)</button>
         </div>
 
-        <div class="card" style="border-top: 5px solid #34a853;">
+        <div class="card" style="border-top: 5px solid var(--success);">
             <h2>📡 Live Mesh Monitor</h2>
             <div id="liveMeshContent">
                 {{LIVE_MESH}}
             </div>
         </div>
         
-        <div class="card" style="border-top: 5px solid #1a73e8;">
-            <h2>⚙️ RSSI Similarity Threshold</h2>
-            <div class="slider-container">
-                <input type="range" id="thresholdSlider" min="0" max="100" value="{{THRESHOLD}}" 
-                       oninput="document.getElementById('thresholdVal').innerText = this.value + '%'" 
-                       onchange="saveThreshold(this.value)">
-                <b id="thresholdVal" style="font-size: 1.5rem; color: #1a73e8; min-width: 60px;">{{THRESHOLD}}%</b>
+        <div class="card" style="border-top: 5px solid var(--secondary);">
+            <h2>⚛️ Spherical Bubble & Signal Geometry</h2>
+            <p style="font-size: 0.85rem; color: #666; margin-bottom: 20px;">Calibrate the Euclidean displacement radius and environmental pattern matching.</p>
+            
+            <div class="physics-row" id="row-threshold">
+                <div class="physics-label">Similarity Threshold (%)</div>
+                <div class="physics-controls">
+                    <input type="range" id="thresholdSlider" min="0" max="100" value="{{THRESHOLD}}" 
+                           oninput="syncVal('thresholdNum', this.value)">
+                    <input type="number" id="thresholdNum" class="num-input" min="0" max="100" value="{{THRESHOLD}}"
+                           oninput="syncVal('thresholdSlider', this.value)" onchange="saveSettings()">
+                </div>
+            </div>
+
+            <div class="physics-row" id="row-radius">
+                <div class="physics-label">Bubble Displacement Limit (Units)</div>
+                <div class="physics-controls">
+                    <input type="range" id="radiusSlider" min="2" max="50" value="{{RADIUS}}" 
+                           oninput="syncVal('radiusNum', this.value)">
+                    <input type="number" id="radiusNum" class="num-input" min="2" max="50" value="{{RADIUS}}"
+                           style="border-color: var(--success); color: var(--success);"
+                           oninput="syncVal('radiusSlider', this.value)" onchange="saveSettings()">
+                </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 10px; border-radius: 8px; transition: 0.3s;" id="physics-toggle-bg">
+                <input type="checkbox" id="physicsEnabled" {{PHYSICS_CHECKED}} onchange="saveSettings()" style="transform: scale(1.4); cursor: pointer;">
+                <label for="physicsEnabled" style="font-weight: bold; cursor: pointer;">Enable Spherical Displacement Shield (Wall-Guard)</label>
             </div>
         </div>
 
-        <div class="card" style="border-top: 5px solid #1a73e8;">
+        <div class="card" style="border-top: 5px solid var(--primary);">
             <h2>➕ Register New Identity</h2>
             <div class="form-row">
-                <input type="text" id="newUsername" placeholder="Name">
-                <input type="text" id="newRoll" placeholder="Roll No">
-                <input type="text" id="newDept" placeholder="Dept (e.g. ECE-A)">
-                <select id="newRole"><option value="student">Student</option><option value="teacher">Teacher</option></select>
+                <input type="text" id="newUsername" placeholder="Full Name">
+                <input type="text" id="newRoll" placeholder="Roll/ID No">
+                <input type="text" id="newDept" placeholder="Department">
+                <select id="newRole">
+                    <option value="student">Student</option>
+                    <option value="teacher">Teacher</option>
+                </select>
                 <input type="password" id="newPass" placeholder="Password">
                 <button class="btn-add" onclick="addUser()">Create</button>
             </div>
@@ -85,41 +126,51 @@
             </div>
         </div>
 
-        <div class="card" style="border-top: 5px solid #ef6c00;">
-            <h2>📜 Manual Correction Logs</h2>
-            <div style="max-height: 250px; overflow-y: auto;">
-                <table>
+        <div class="card">
+            <h2>👥 Identity Management</h2>
+            <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Search roll number, name or department...">
+            <div style="overflow-x: auto;">
+                <table id="userTable">
                     <thead>
-                        <tr><th>Teacher</th><th>Student ID</th><th>Modification</th><th>Timestamp</th></tr>
+                        <tr><th>Name</th><th>Roll No</th><th>Dept</th><th>Role</th><th>Actions</th></tr>
                     </thead>
                     <tbody>
-                        {{CORRECTION_LOGS}}
+                        {{USER_LIST}}
                     </tbody>
                 </table>
             </div>
         </div>
-
-        <div class="card">
-            <h2>👥 Identity Management</h2>
-            <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Search directory...">
-            <table id="userTable">
-                <thead>
-                    <tr><th>Name</th><th>Roll No</th><th>Dept</th><th>Role</th><th>Actions</th></tr>
-                </thead>
-                <tbody>
-                    {{USER_LIST}}
-                </tbody>
-            </table>
-        </div>
     </div>
 
     <script>
-        async function saveThreshold(val) {
-            await fetch('/admin/update-settings', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': '{{TOKEN}}' },
-                body: JSON.stringify({ threshold: val })
-            });
+        // Image of a sequence diagram showing the handshake between student app, teacher app, and server during attendance session initiation
+        
+        function syncVal(targetId, val) {
+            document.getElementById(targetId).value = val;
+        }
+
+        async function saveSettings() {
+            const data = {
+                threshold: document.getElementById('thresholdNum').value,
+                physicsEnabled: document.getElementById('physicsEnabled').checked,
+                maxRadius: document.getElementById('radiusNum').value
+            };
+            
+            try {
+                const res = await fetch('/admin/update-settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': '{{TOKEN}}' },
+                    body: JSON.stringify(data)
+                });
+                if(res.ok) {
+                    console.log("Settings Synced to Mesh Server");
+                    
+                    // Flash feedback
+                    const feedback = document.getElementById('physics-toggle-bg');
+                    feedback.style.backgroundColor = "#e8f5e9";
+                    setTimeout(() => feedback.style.backgroundColor = "transparent", 600);
+                }
+            } catch (e) { alert("Server Sync Failed - Check Network"); }
         }
 
         async function addUser() {
@@ -130,6 +181,8 @@
                 role: document.getElementById('newRole').value,
                 password: document.getElementById('newPass').value
             };
+            if(!data.username || !data.password) return alert("All fields are required for Identity creation.");
+            
             const res = await fetch('/admin/add-user', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': '{{TOKEN}}' },
@@ -140,8 +193,8 @@
 
         async function addSchedule() {
             const data = {
-                teacherID: document.getElementById('schTeacher').value,
-                className: document.getElementById('schClass').value,
+                teacherID: document.getElementById('schTeacher').value.toLowerCase(),
+                className: document.getElementById('schClass').value.toUpperCase(),
                 day: document.getElementById('schDay').value,
                 startTime: document.getElementById('schStart').value,
                 endTime: document.getElementById('schEnd').value
@@ -151,11 +204,11 @@
                 headers: { 'Content-Type': 'application/json', 'Authorization': '{{TOKEN}}' },
                 body: JSON.stringify(data)
             });
-            if(res.ok) { alert("Schedule Updated!"); location.reload(); }
+            if(res.ok) { alert("Mesh Schedule Updated!"); location.reload(); }
         }
 
         async function deleteUser(id) {
-            if (confirm("Delete user?")) {
+            if (confirm("Permanently delete this identity from the mesh?")) {
                 await fetch('/admin/delete-user', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': '{{TOKEN}}' },
@@ -172,7 +225,9 @@
                 tr[i].style.display = tr[i].innerText.toUpperCase().includes(input) ? "" : "none";
             }
         }
-        setTimeout(() => location.reload(), 20000); // Auto-refresh for Live Mesh
+
+        // Auto-refresh Mesh monitor every 30 seconds to see live classroom activity
+        setTimeout(() => location.reload(), 30000); 
     </script>
 </body>
 </html>
