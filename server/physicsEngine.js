@@ -8,12 +8,16 @@ require('dotenv').config();
  * Validates student proximity using N-Dimensional Euclidean Displacement.
  * @param {Object} studentWifi - { SSID: RSSI_Level }
  * @param {Object} masterWifi  - { SSID: RSSI_Level }
+ * @param {Object} sessionSettings - { threshold, maxRadius, physicsEnabled }
  */
-const validateBubbleBoundary = (studentWifi, masterWifi) => {
+const validateBubbleBoundary = (studentWifi, masterWifi, sessionSettings = {}) => {
     try {
-        // 1. Global Safety Bypass
-        if (process.env.PHYSICS_ENABLED !== 'true') {
-            return { valid: true, bubbleDistance: 0, status: "Physics Bypass Active" };
+        // 1. Dynamic Settings Extraction (Teacher-Calibrated or Global Fallback)
+        const physicsEnabled = sessionSettings.physicsEnabled ?? (process.env.PHYSICS_ENABLED === 'true');
+        const maxAllowedRadius = parseFloat(sessionSettings.maxRadius) || parseFloat(process.env.MAX_ROOM_RADIUS) || 12.0;
+        
+        if (!physicsEnabled) {
+            return { valid: true, bubbleDistance: 0, status: "Physics Shield Bypassed" };
         }
 
         if (!studentWifi || !masterWifi || Object.keys(masterWifi).length === 0) {
@@ -24,8 +28,7 @@ const validateBubbleBoundary = (studentWifi, masterWifi) => {
         let commonPoints = 0;
         let wallObstructionHits = 0;
         
-        // 🛡️ WALL-GUARD CALIBRATION: 
-        // 22dB represents the average attenuation of a 4-inch concrete wall.
+        // 🛡️ WALL-GUARD CALIBRATION
         const ATTENUATION_THRESHOLD = 22; 
 
         // 2. N-Dimensional Signal Mapping
@@ -38,7 +41,7 @@ const validateBubbleBoundary = (studentWifi, masterWifi) => {
                 const signalGap = teacherRSSI - studentRSSI;
 
                 /**
-                 * 🧱 MATERIAL ATTENUATION AUDIT:
+                 * 🧱 MATERIAL ATTENUATION AUDIT
                  * Detects non-linear signal drops that indicate physical barriers.
                  */
                 if (Math.abs(signalGap) > ATTENUATION_THRESHOLD) {
@@ -46,8 +49,8 @@ const validateBubbleBoundary = (studentWifi, masterWifi) => {
                 }
 
                 /**
-                 * 📐 EUCLIDEAN DISTANCE (Multi-Dimensional):
-                 * d = sqrt( sum( (T_i - S_i)^2 ) )
+                 * 📐 EUCLIDEAN DISTANCE (Multi-Dimensional)
+                 * Calculation: sum of squared differences across all shared WiFi dimensions.
                  */
                 sumSquaredDifferences += Math.pow(signalGap, 2);
                 commonPoints++;
@@ -55,8 +58,6 @@ const validateBubbleBoundary = (studentWifi, masterWifi) => {
         }
 
         // 3. MESH CONFIDENCE CHECK
-        // If the student sees less than 2 of the teacher's anchor points, 
-        // the location is unverifiable (Potential spoofing or out-of-range).
         if (commonPoints < 2) {
             return { 
                 valid: false, 
@@ -66,16 +67,16 @@ const validateBubbleBoundary = (studentWifi, masterWifi) => {
         }
 
         /**
-         * 🔮 RADIAL DISPLACEMENT CALCULATION
-         * RMS (Root Mean Square) provides the normalized distance in signal space.
+         * 🔮 RADIAL DISPLACEMENT (RMS Calculation)
+         * Equation: $$d = \sqrt{\frac{\sum_{i=1}^{n} (T_i - S_i)^2}{n}}$$
          */
         const bubbleDistance = Math.sqrt(sumSquaredDifferences / commonPoints);
-        const maxAllowedRadius = parseFloat(process.env.MAX_ROOM_RADIUS) || 12.0;
+        
+        
 
         /**
-         * ⚖️ FINAL SHIELD DECISION
-         * Condition A: Euclidean Displacement is within calibrated radius.
-         * Condition B: Wall-Guard hits are below the obstruction limit (max 1 hit allowed).
+         * ⚖️ ZERO-TRUST DECISION LOGIC
+         * We verify that the student is within the sphere AND not behind a concrete wall.
          */
         const isBehindWall = wallObstructionHits >= 2; 
         const isInsideBubble = bubbleDistance <= maxAllowedRadius;

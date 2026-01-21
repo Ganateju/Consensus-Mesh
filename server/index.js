@@ -19,10 +19,6 @@ const CLOUD_DB_URI = process.env.MONGO_URI;
 const JWT_SECRET = process.env.JWT_SECRET || "MESH_SECURE_TOKEN_2024";
 
 // --- GLOBAL ENGINE STATE ---
-let GLOBAL_SETTINGS = { 
-    threshold: 10, 
-    physicsEnabled: process.env.PHYSICS_ENABLED === 'true'
-};
 let ACTIVE_SESSIONS = {}; 
 
 // 1. DATABASE CONNECTION
@@ -65,7 +61,7 @@ const verifyToken = (req, res, next) => {
     }
 };
 
-// 4. ELITE CORE LOGIC: SIMILARITY & CONSENSUS
+// 4. CORE LOGIC: SIMILARITY & CONSENSUS
 const calculateSimilarity = (s, t) => {
     if (!s || !t || Object.keys(s).length === 0 || Object.keys(t).length === 0) return 0;
     let dotProduct = 0, sNorm = 0, tNorm = 0;
@@ -107,25 +103,21 @@ app.post('/admin/add-schedule', verifyToken, async (req, res) => {
     } catch (e) { res.status(400).send("Schedule Conflict"); }
 });
 
-app.get('/admin/export-attendance', verifyToken, async (req, res) => {
-    const history = await History.find({}).sort({ timestamp: -1 });
-    let csv = "Timestamp,Class,Teacher,RollNo,Similarity,Status,Flags\n";
-    history.forEach(s => s.attendance.forEach(r => {
-        csv += `${s.timestamp.toISOString()},${s.className},${s.teacherID},${r.rollNo},${r.rfStability}%,${r.status},${r.flags.join('|')}\n`;
-    }));
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename=Mesh_Report.csv');
-    res.send(csv);
+app.post('/admin/delete-user', verifyToken, async (req, res) => {
+    try { await User.findByIdAndDelete(req.body.id); res.json({ status: "success" }); } 
+    catch (e) { res.status(500).send("Delete Failed"); }
 });
 
-// --- TEACHER ENGINE (CONSENSUS & CHALLENGE) ---
+// --- TEACHER ENGINE (PULSE SYNC & CALIBRATION) ---
 
 app.post('/set-master', verifyToken, async (req, res) => {
-    const { wifi } = req.body;
+    const { wifi, threshold, maxRadius, physicsEnabled } = req.body;
     const teacherID = req.user.username.toLowerCase().trim(); 
+    
     const istDate = new Date(new Date().getTime() + (5.5 * 60 * 60 * 1000));
     const today = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][istDate.getUTCDay()];
     const sched = await Schedule.findOne({ teacherID, day: today });
+
     if (!sched && req.user.role !== 'admin') return res.status(403).json({ message: "No schedule today." });
 
     ACTIVE_SESSIONS[teacherID] = { 
@@ -133,7 +125,12 @@ app.post('/set-master', verifyToken, async (req, res) => {
         sessionEvidence: {}, 
         quizActive: false, 
         className: sched ? sched.className : "Manual-Session",
-        startTime: istDate 
+        startTime: istDate,
+        settings: {
+            threshold: threshold || 10,
+            maxRadius: maxRadius || 12,
+            physicsEnabled: physicsEnabled ?? true
+        }
     };
     res.json({ status: "success", className: ACTIVE_SESSIONS[teacherID].className });
 });
@@ -142,20 +139,19 @@ app.post('/trigger-quiz', verifyToken, (req, res) => {
     const teacherID = req.user.username.toLowerCase().trim();
     if(!ACTIVE_SESSIONS[teacherID]) return res.status(400).send("Offline");
     ACTIVE_SESSIONS[teacherID].quizActive = true;
-    ACTIVE_SESSIONS[teacherID].quizAnswer = (Math.floor(Math.random() * 90) + 10).toString();
-    ACTIVE_SESSIONS[teacherID].quizQuestion = `Security Code: ${ACTIVE_SESSIONS[teacherID].quizAnswer}`;
-    setTimeout(() => { if(ACTIVE_SESSIONS[teacherID]) ACTIVE_SESSIONS[teacherID].quizActive = false; }, 4000); 
+    ACTIVE_SESSIONS[teacherID].quizWindowEnd = Date.now() + 6000; // 6s Global Window
+    setTimeout(() => { if(ACTIVE_SESSIONS[teacherID]) ACTIVE_SESSIONS[teacherID].quizActive = false; }, 6000); 
     res.json({ status: "triggered" });
 });
 
-// --- STUDENT ENGINE (HEARTBEAT & SENSORS) ---
+// --- STUDENT ENGINE (SYNCED HEARTBEAT) ---
 
 app.post('/discover-room', verifyToken, (req, res) => {
     const studentWifi = req.body.wifi;
     let bestMatch = null, highestScore = 0;
     for (const [tID, session] of Object.entries(ACTIVE_SESSIONS)) {
         const score = calculateSimilarity(studentWifi, session.masterWifi);
-        if (score >= GLOBAL_SETTINGS.threshold && score > highestScore) { 
+        if (score >= session.settings.threshold && score > highestScore) { 
             highestScore = score; 
             bestMatch = tID; 
         }
@@ -169,6 +165,9 @@ app.post('/submit-evidence', verifyToken, (req, res) => {
     const session = ACTIVE_SESSIONS[teacherID.toLowerCase().trim()];
     if (!session) return res.status(400).json({ status: "no_session" });
     
+    // 🕒 Window Enforcement for Liveness
+    const isInsideWindow = session.quizActive && (Date.now() < session.quizWindowEnd);
+
     const sID = req.user.id; 
     if (!session.sessionEvidence[sID]) {
         session.sessionEvidence[sID] = { rollNo, wifiHistory: [], movementHistory: [], liveness: false };
@@ -176,20 +175,20 @@ app.post('/submit-evidence', verifyToken, (req, res) => {
     session.sessionEvidence[sID].wifiHistory.push(wifi);
     session.sessionEvidence[sID].movementHistory.push(accelVariance || 0);
     
-    res.json({ status: "ok", quizActive: session.quizActive, quizQuestion: session.quizQuestion });
+    res.json({ status: "ok", quizActive: isInsideWindow });
 });
 
 app.post('/submit-liveness', verifyToken, (req, res) => {
-    const { teacherID, answer } = req.body;
+    const { teacherID } = req.body;
     const session = ACTIVE_SESSIONS[teacherID.toLowerCase().trim()];
-    if (session?.quizActive && answer === session.quizAnswer) {
+    if (session?.quizActive) {
         if (session.sessionEvidence[req.user.id]) session.sessionEvidence[req.user.id].liveness = true;
         return res.json({ status: "verified" });
     }
-    res.status(400).send("Invalid code");
+    res.status(400).send("Window Closed");
 });
 
-// --- THE ANALYTICS HUB (ANTI-CLUSTER & DISPLACEMENT) ---
+// --- ANALYTICS HUB (CONSENSUS & ANTI-CLUSTER) ---
 
 app.post('/finalize-session', verifyToken, async (req, res) => {
     const teacherID = req.user.username.toLowerCase().trim();
@@ -206,35 +205,38 @@ app.post('/finalize-session', verifyToken, async (req, res) => {
         if (evidence) {
             const latestWifi = evidence.wifiHistory[evidence.wifiHistory.length - 1];
             score = calculateSimilarity(latestWifi, session.masterWifi);
-            const bubble = validateBubbleBoundary(latestWifi, session.masterWifi);
+            const bubble = validateBubbleBoundary(latestWifi, session.masterWifi, session.settings);
             dist = bubble.bubbleDistance;
 
-            // 🚫 ANTI-CLUSTER CHECK: Compare with other active phones
-            const sameFingerprintCount = studentsArray.filter(other => 
+            // 1. CONSENSUS SET DIFFERENCE CHECK
+            const studentSSIDs = Object.keys(latestWifi);
+            const teacherSSIDs = Object.keys(session.masterWifi);
+            const overlap = studentSSIDs.filter(x => teacherSSIDs.includes(x));
+            if (overlap.length / teacherSSIDs.length < 0.3) flags.push("Environment Mismatch");
+
+            // 2. ANTI-CLUSTER & MOTION AUDIT
+            const sameFingerprint = studentsArray.filter(other => 
                 other.rollNo !== student.rollNo && 
                 calculateSimilarity(latestWifi, other.wifiHistory[other.wifiHistory.length - 1]) > 98
-            ).length;
-
-            if (sameFingerprintCount >= 2) flags.push("Proxy Cluster Detected");
-
-            // 🏃 HUMAN PRESENCE CHECK: Check movement variance
+            );
             const avgMovement = evidence.movementHistory.reduce((a, b) => a + b, 0) / evidence.movementHistory.length;
-            if (avgMovement < 0.01) flags.push("Static Ghost Device");
+            
+            if (sameFingerprint.length > 0 && avgMovement < 0.01) {
+                const peers = sameFingerprint.map(p => p.rollNo).join(', ');
+                flags.push(`Proxy Cluster Detected (Peers: ${peers})`);
+            }
 
             // 🛡️ DECISION LOGIC
-            if (score > GLOBAL_SETTINGS.threshold && evidence.liveness) {
-                if (GLOBAL_SETTINGS.physicsEnabled && !bubble.valid) {
+            if (score > session.settings.threshold && evidence.liveness) {
+                if (session.settings.physicsEnabled && !bubble.valid) {
                     status = `ABSENT (Shield: ${bubble.status})`;
-                } else if (flags.length > 0) {
-                    status = "PARTIAL (Risk Detected)";
-                } else {
-                    status = "PRESENT";
-                }
-            } else if (score > (GLOBAL_SETTINGS.threshold / 2)) {
+                } else if (flags.some(f => f.includes("Proxy"))) {
+                    status = "PARTIAL (Cluster Flag)";
+                } else { status = "PRESENT"; }
+            } else if (score > (session.settings.threshold / 2)) {
                 status = "PARTIAL";
             }
         }
-
         return { rollNo: student.rollNo, rfStability: score.toFixed(0), status, displacementUnits: dist, flags };
     });
 
@@ -248,15 +250,19 @@ app.post('/save-final-attendance', verifyToken, async (req, res) => {
     res.json({ status: "success" });
 });
 
-// --- DASHBOARD ---
+// --- DASHBOARD (REACTIVE) ---
 app.get('/dashboard', verifyToken, async (req, res) => {
     if (req.user.role !== 'admin') return res.status(403).send("Forbidden");
     const users = await User.find({});
+    const logs = await History.find({}).sort({ timestamp: -1 });
     const token = req.query.token;
-    const liveMeshRows = Object.keys(ACTIVE_SESSIONS).map(tID => `<div class="mesh-box"><b>${ACTIVE_SESSIONS[tID].className}</b>: ${tID}</div>`).join('') || '<p>Idle</p>';
-    const userRows = users.map(u => `<tr><td>${u.username}</td><td>${u.rollNo || '--'}</td><td><span class="badge ${u.role}">${u.role}</span></td><td><button onclick="deleteUser('${u._id}')">Delete</button></td></tr>`).join('');
+
+    const userRows = users.map(u => `<tr><td>${u.username}</td><td>${u.rollNo || '--'}</td><td>${u.department || '--'}</td><td><span class="badge ${u.role}">${u.role}</span></td><td><button class="btn btn-danger" onclick="deleteUser('${u._id}')">Delete</button></td></tr>`).join('');
+    const logRows = logs.map(l => `<tr class="log-row" data-class="${l.className}"><td>${new Date(l.timestamp).toLocaleString()}</td><td><b>${l.className}</b></td><td>${l.teacherID}</td><td><button class="btn btn-primary" onclick="window.location.href='/admin/export-attendance?token=${token}'">Report</button></td></tr>`).join('');
+    const liveMeshRows = Object.keys(ACTIVE_SESSIONS).map(tID => `<div class="mesh-box"><b>${ACTIVE_SESSIONS[tID].className}</b>: ${tID} (${Object.keys(ACTIVE_SESSIONS[tID].sessionEvidence).length} Links)</div>`).join('') || '<p>Idle</p>';
+
     const html = fs.readFileSync(path.join(__dirname, 'dashboard.html'), 'utf8');
-    res.send(html.replace(/{{LIVE_MESH}}/g, liveMeshRows).replace(/{{USER_LIST}}/g, userRows).replace(/{{TOKEN}}/g, token).replace(/{{THRESHOLD}}/g, GLOBAL_SETTINGS.threshold).replace(/{{RADIUS}}/g, process.env.MAX_ROOM_RADIUS || 12).replace(/{{PHYSICS_CHECKED}}/g, GLOBAL_SETTINGS.physicsEnabled ? 'checked' : ''));
+    res.send(html.replace(/{{LIVE_MESH}}/g, liveMeshRows).replace(/{{USER_LIST}}/g, userRows).replace(/{{LOG_LIST}}/g, logRows).replace(/{{TOKEN}}/g, token));
 });
 
 app.listen(PORT, () => console.log(`🚀 Mesh Server Broadcasting on Port ${PORT}`));
