@@ -133,13 +133,16 @@ app.post('/set-master', verifyToken, async (req, res) => {
     const { wifi } = req.body;
     const teacherID = req.user.username.toLowerCase().trim(); 
     
+    // Strict IST Time Calculation
     const istDate = new Date(new Date().getTime() + (5.5 * 60 * 60 * 1000));
     const today = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][istDate.getUTCDay()];
 
+    // STRICT CHECK: Must find a schedule in MongoDB
     const sched = await Schedule.findOne({ teacherID, day: today });
-    
-    // Fallback: If no schedule found, we allow "Manual-Session" but only for the demo
-    const activeClassName = sched ? sched.className : "Manual-Session";
+
+    if (!sched && req.user.role !== 'admin') {
+        return res.status(403).json({ message: "Schedule check failed: No class today." });
+    }
 
     if (ACTIVE_SESSIONS[teacherID]) delete ACTIVE_SESSIONS[teacherID];
 
@@ -147,12 +150,11 @@ app.post('/set-master', verifyToken, async (req, res) => {
         masterWifi: wifi, 
         sessionEvidence: {}, 
         quizActive: false, 
-        className: activeClassName,
+        className: sched ? sched.className : "Admin-Manual-Session",
         startTime: istDate 
     };
-    res.json({ status: "success", className: activeClassName });
+    res.json({ status: "success", className: ACTIVE_SESSIONS[teacherID].className });
 });
-
 app.post('/finalize-session', verifyToken, async (req, res) => {
     const teacherID = req.user.username.toLowerCase().trim();
     const session = ACTIVE_SESSIONS[teacherID];
