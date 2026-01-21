@@ -7,6 +7,11 @@
 [![MongoDB](https://img.shields.io/badge/Database-MongoDB-47A248?logo=mongodb)](https://www.mongodb.com/)
 
 **Consensus Mesh** is a high-security attendance and identity verification ecosystem designed to eliminate "Proxy Attendance." It creates a mathematical consensus of the ambient RF (Radio Frequency) environment between a Teacher and a Student. If you aren't breathing the same air and seeing the same signals at the exact same millisecond, you aren't in the mesh.
+---
+## 📖 Documentation
+* [🚀 Project Overview](./PROJECT_OVERVIEW.md) - *The "Why" and "What"*
+* [🏗️ Technical Specifications](./TECHNICAL_SPECIFICATIONS.md) - *The "How" and "Math"*
+
 
 ---
 
