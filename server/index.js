@@ -94,7 +94,32 @@ app.post('/login', async (req, res) => {
 });
 
 // --- ADMIN ROUTES (Fixed for Database Persistence) ---
+// --- ADD THIS TO index.js ---
+app.post('/admin/add-user', verifyToken, async (req, res) => {
+    if (req.user.role !== 'admin') return res.status(403).send("Admin only");
+    try {
+        const { username, password, role, rollNo, department } = req.body;
+        
+        // Check for existing user
+        const existingUser = await User.findOne({ username: username.toLowerCase().trim() });
+        if (existingUser) return res.status(400).json({ message: "User already exists" });
 
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        await User.create({ 
+            username: username.toLowerCase().trim(), 
+            password: hashedPassword, 
+            role, 
+            rollNo, 
+            department: department ? department.toUpperCase().trim() : 'GEN' 
+        });
+        
+        res.json({ status: "success" });
+    } catch (e) { 
+        console.error("Add User Error:", e);
+        res.status(400).json({ message: "Save Failed" }); 
+    }
+});
 app.post('/admin/add-schedule', verifyToken, async (req, res) => {
     if (req.user.role !== 'admin') return res.status(403).send("Unauthorized");
     try {
