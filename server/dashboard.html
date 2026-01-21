@@ -20,11 +20,11 @@
         h1 { color: var(--primary); margin-bottom: 30px; font-weight: 300; letter-spacing: -1px; }
         h2 { margin-top: 0; display: flex; align-items: center; gap: 10px; font-size: 1.1rem; color: #555; text-transform: uppercase; letter-spacing: 1px; }
         
-        .form-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr auto; gap: 12px; margin-top: 15px; }
+        .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 15px; }
         input, select { padding: 12px; border: 1px solid #dee2e6; border-radius: 8px; font-size: 14px; outline: none; transition: 0.2s; }
         input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(26,115,232,0.1); }
         
-        .physics-row { display: flex; align-items: center; gap: 20px; background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 15px; transition: background 0.4s; }
+        .physics-row { display: flex; align-items: center; gap: 20px; background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 15px; }
         .physics-label { flex: 1; font-weight: 600; color: #444; }
         .physics-controls { flex: 3; display: flex; align-items: center; gap: 15px; }
         input[type=range] { flex-grow: 1; cursor: pointer; height: 6px; background: #dfe6e9; border-radius: 5px; appearance: none; }
@@ -53,7 +53,7 @@
     <div class="container">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <h1>Consensus Mesh | Admin Console</h1>
-            <button class="btn-add" onclick="window.open('/admin/export-attendance?token={{TOKEN}}')" style="background: var(--success);">📥 Master Export (CSV)</button>
+            <button class="btn-add" onclick="window.location.href='/admin/export-attendance?token={{TOKEN}}'" style="background: var(--success);">📥 Master Export (CSV)</button>
         </div>
 
         <div class="card" style="border-top: 5px solid var(--success);">
@@ -64,8 +64,8 @@
         </div>
         
         <div class="card" style="border-top: 5px solid var(--secondary);">
-            <h2>⚛️ Spherical Bubble & Signal Geometry</h2>
-            <p style="font-size: 0.85rem; color: #666; margin-bottom: 20px;">Calibrate the Euclidean displacement radius and environmental pattern matching.</p>
+            <h2>⚛️ Zero-Trust Physics Calibration</h2>
+            <p style="font-size: 0.85rem; color: #666; margin-bottom: 20px;">Adjust Euclidean radius and signal pattern matching for the room environment.</p>
             
             <div class="physics-row">
                 <div class="physics-label">Similarity Threshold (%)</div>
@@ -76,7 +76,7 @@
             </div>
 
             <div class="physics-row">
-                <div class="physics-label">Bubble Displacement Limit (Units)</div>
+                <div class="physics-label">Max Bubble Radius (Units)</div>
                 <div class="physics-controls">
                     <input type="range" id="radiusSlider" min="2" max="50" value="{{RADIUS}}" oninput="syncVal('radiusNum', this.value)">
                     <input type="number" id="radiusNum" class="num-input" min="2" max="50" value="{{RADIUS}}" style="border-color: var(--success); color: var(--success);" oninput="syncVal('radiusSlider', this.value)" onchange="saveSettings()">
@@ -85,16 +85,16 @@
 
             <div style="display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 10px; border-radius: 8px; transition: 0.3s;" id="physics-toggle-bg">
                 <input type="checkbox" id="physicsEnabled" {{PHYSICS_CHECKED}} onchange="saveSettings()" style="transform: scale(1.4); cursor: pointer;">
-                <label for="physicsEnabled" style="font-weight: bold; cursor: pointer;">Enable Spherical Displacement Shield (Wall-Guard)</label>
+                <label for="physicsEnabled" style="font-weight: bold; cursor: pointer;">Activate Anti-Proxy Displacement Shield</label>
             </div>
         </div>
 
         <div class="card" style="border-top: 5px solid var(--primary);">
-            <h2>➕ Register New Identity</h2>
+            <h2>➕ Identity Provisioning</h2>
             <div class="form-row">
-                <input type="text" id="newUsername" placeholder="Full Name">
-                <input type="text" id="newRoll" placeholder="Roll/ID No">
-                <input type="text" id="newDept" placeholder="Department">
+                <input type="text" id="newUsername" placeholder="Username">
+                <input type="text" id="newRoll" placeholder="Roll No">
+                <input type="text" id="newDept" placeholder="Dept">
                 <select id="newRole">
                     <option value="student">Student</option>
                     <option value="teacher">Teacher</option>
@@ -104,24 +104,9 @@
             </div>
         </div>
 
-        <div class="card" style="border-top: 5px solid #f1c40f;">
-            <h2>📅 Master Scheduler</h2>
-            <div class="form-row">
-                <input type="text" id="schTeacher" placeholder="Teacher Username">
-                <input type="text" id="schClass" placeholder="Class (e.g. ECE-A)">
-                <select id="schDay">
-                    <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
-                    <option>Thursday</option><option>Friday</option><option>Saturday</option>
-                </select>
-                <input type="time" id="schStart">
-                <input type="time" id="schEnd">
-                <button class="btn-add" id="btnAddSchedule" onclick="addSchedule()" style="background:#f1c40f; color:#333;">Add Slot</button>
-            </div>
-        </div>
-
         <div class="card">
             <h2>👥 Identity Management</h2>
-            <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Search roll number, name or department...">
+            <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Search by name, roll, or department...">
             <div style="overflow-x: auto;">
                 <table id="userTable">
                     <thead>
@@ -136,6 +121,8 @@
     </div>
 
     <script>
+        const TOKEN = "{{TOKEN}}";
+
         function syncVal(targetId, val) {
             document.getElementById(targetId).value = val;
         }
@@ -149,7 +136,7 @@
             try {
                 const res = await fetch('/admin/update-settings', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': '{{TOKEN}}' },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': TOKEN },
                     body: JSON.stringify(data)
                 });
                 if(res.ok) {
@@ -170,40 +157,22 @@
                 role: document.getElementById('newRole').value,
                 password: document.getElementById('newPass').value
             };
-            if(!data.username || !data.password) { alert("Username and Password required"); btn.disabled = false; btn.innerText="Create"; return; }
+            if(!data.username || !data.password) { alert("Fields required"); btn.disabled = false; btn.innerText="Create"; return; }
+            
             const res = await fetch('/admin/add-user', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': '{{TOKEN}}' },
+                headers: { 'Content-Type': 'application/json', 'Authorization': TOKEN },
                 body: JSON.stringify(data)
             });
             if(res.ok) location.reload();
             else { alert("Error adding user"); btn.disabled = false; btn.innerText="Create"; }
-        } 
-
-        async function addSchedule() {
-            const btn = document.getElementById('btnAddSchedule');
-            btn.disabled = true;
-            const data = {
-                teacherID: document.getElementById('schTeacher').value.toLowerCase().trim(),
-                className: document.getElementById('schClass').value.toUpperCase().trim(),
-                day: document.getElementById('schDay').value,
-                startTime: document.getElementById('schStart').value,
-                endTime: document.getElementById('schEnd').value
-            };
-            const res = await fetch('/admin/add-schedule', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': '{{TOKEN}}' },
-                body: JSON.stringify(data)
-            });
-            if(res.ok) { alert("Schedule Updated!"); location.reload(); }
-            else { alert("Error"); btn.disabled = false; }
         }
 
         async function deleteUser(id) {
-            if (confirm("Delete this user?")) {
+            if (confirm("Delete this identity?")) {
                 const res = await fetch('/admin/delete-user', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': '{{TOKEN}}' },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': TOKEN },
                     body: JSON.stringify({ id })
                 });
                 if(res.ok) location.reload();
@@ -217,7 +186,7 @@
                 tr[i].style.display = tr[i].innerText.toUpperCase().includes(input) ? "" : "none";
             }
         }
-        setTimeout(() => location.reload(), 45000); 
+        setTimeout(() => location.reload(), 30000); 
     </script>
 </body>
 </html>
