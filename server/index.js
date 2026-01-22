@@ -45,7 +45,14 @@ const History = mongoose.model('History', new mongoose.Schema({
     className: String,
     teacherID: String,
     timestamp: { type: Date, default: Date.now },
-    attendance: [{ rollNo: String, rfStability: Number, status: String, flags: [String] }]
+    // Expanded Schema to store Liveness proof for transparency
+    attendance: [{ 
+        rollNo: String, 
+        rfStability: Number, 
+        liveness: String, 
+        status: String, 
+        flags: [String] 
+    }]
 }));
 
 // 3. SECURITY MIDDLEWARE
@@ -108,7 +115,19 @@ app.post('/admin/delete-user', verifyToken, async (req, res) => {
     catch (e) { res.status(500).send("Delete Failed"); }
 });
 
-// --- TEACHER ENGINE (PULSE SYNC & CALIBRATION) ---
+app.get('/admin/export-attendance', verifyToken, async (req, res) => {
+    const history = await History.find({}).sort({ timestamp: -1 });
+    // Added Liveness column to CSV export
+    let csv = "Timestamp,Class,Teacher,RollNo,Similarity,Liveness,Status,Flags\n";
+    history.forEach(s => s.attendance.forEach(r => {
+        csv += `${s.timestamp.toISOString()},${s.className},${s.teacherID},${r.rollNo},${r.rfStability}%,${r.liveness || 'N/A'},${r.status},${r.flags.join('|')}\n`;
+    }));
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=Mesh_Full_Report.csv');
+    res.send(csv);
+});
+
+// --- TEACHER ENGINE ---
 
 app.post('/set-master', verifyToken, async (req, res) => {
     const { wifi, threshold, maxRadius, physicsEnabled } = req.body;
@@ -139,12 +158,12 @@ app.post('/trigger-quiz', verifyToken, (req, res) => {
     const teacherID = req.user.username.toLowerCase().trim();
     if(!ACTIVE_SESSIONS[teacherID]) return res.status(400).send("Offline");
     ACTIVE_SESSIONS[teacherID].quizActive = true;
-    ACTIVE_SESSIONS[teacherID].quizWindowEnd = Date.now() + 6000; // 6s Global Window
+    ACTIVE_SESSIONS[teacherID].quizWindowEnd = Date.now() + 6000; 
     setTimeout(() => { if(ACTIVE_SESSIONS[teacherID]) ACTIVE_SESSIONS[teacherID].quizActive = false; }, 6000); 
     res.json({ status: "triggered" });
 });
 
-// --- STUDENT ENGINE (SYNCED HEARTBEAT) ---
+// --- STUDENT ENGINE ---
 
 app.post('/discover-room', verifyToken, (req, res) => {
     const studentWifi = req.body.wifi;
@@ -165,7 +184,6 @@ app.post('/submit-evidence', verifyToken, (req, res) => {
     const session = ACTIVE_SESSIONS[teacherID.toLowerCase().trim()];
     if (!session) return res.status(400).json({ status: "no_session" });
     
-    // 🕒 Window Enforcement for Liveness
     const isInsideWindow = session.quizActive && (Date.now() < session.quizWindowEnd);
 
     const sID = req.user.id; 
@@ -188,7 +206,7 @@ app.post('/submit-liveness', verifyToken, (req, res) => {
     res.status(400).send("Window Closed");
 });
 
-// --- ANALYTICS HUB (CONSENSUS & ANTI-CLUSTER) ---
+// --- ANALYTICS HUB (TRANSPARENCY UPGRADE) ---
 
 app.post('/finalize-session', verifyToken, async (req, res) => {
     const teacherID = req.user.username.toLowerCase().trim();
@@ -200,21 +218,22 @@ app.post('/finalize-session', verifyToken, async (req, res) => {
 
     const fullReport = enrolledStudents.map(student => {
         const evidence = studentsArray.find(e => e.rollNo === student.rollNo);
-        let status = "ABSENT", score = 0, dist = 0, flags = [];
+        let status = "ABSENT", score = 0, dist = 0, flags = [], livenessStatus = "❌";
 
         if (evidence) {
             const latestWifi = evidence.wifiHistory[evidence.wifiHistory.length - 1];
             score = calculateSimilarity(latestWifi, session.masterWifi);
             const bubble = validateBubbleBoundary(latestWifi, session.masterWifi, session.settings);
             dist = bubble.bubbleDistance;
+            livenessStatus = evidence.liveness ? "✅" : "❌";
 
-            // 1. CONSENSUS SET DIFFERENCE CHECK
+            // 1. Consensus check
             const studentSSIDs = Object.keys(latestWifi);
             const teacherSSIDs = Object.keys(session.masterWifi);
             const overlap = studentSSIDs.filter(x => teacherSSIDs.includes(x));
             if (overlap.length / teacherSSIDs.length < 0.3) flags.push("Environment Mismatch");
 
-            // 2. ANTI-CLUSTER & MOTION AUDIT
+            // 2. Anti-cluster
             const sameFingerprint = studentsArray.filter(other => 
                 other.rollNo !== student.rollNo && 
                 calculateSimilarity(latestWifi, other.wifiHistory[other.wifiHistory.length - 1]) > 98
@@ -226,18 +245,27 @@ app.post('/finalize-session', verifyToken, async (req, res) => {
                 flags.push(`Proxy Cluster Detected (Peers: ${peers})`);
             }
 
-            // 🛡️ DECISION LOGIC
-            if (score > session.settings.threshold && evidence.liveness) {
+            // 🛡️ UPDATED DECISION LOGIC
+            if (score >= session.settings.threshold && evidence.liveness) {
                 if (session.settings.physicsEnabled && !bubble.valid) {
                     status = `ABSENT (Shield: ${bubble.status})`;
                 } else if (flags.some(f => f.includes("Proxy"))) {
                     status = "PARTIAL (Cluster Flag)";
                 } else { status = "PRESENT"; }
-            } else if (score > (session.settings.threshold / 2)) {
+            } else if (score > 2) {
                 status = "PARTIAL";
             }
         }
-        return { rollNo: student.rollNo, rfStability: score.toFixed(0), status, displacementUnits: dist, flags };
+        
+        // Final object now includes liveness for the Review Dialog
+        return { 
+            rollNo: student.rollNo, 
+            rfStability: score.toFixed(0), 
+            liveness: livenessStatus,
+            status, 
+            displacementUnits: dist, 
+            flags 
+        };
     });
 
     res.json({ status: "success", reviewList: fullReport, className: session.className });
@@ -250,7 +278,7 @@ app.post('/save-final-attendance', verifyToken, async (req, res) => {
     res.json({ status: "success" });
 });
 
-// --- DASHBOARD (REACTIVE) ---
+// --- DASHBOARD ---
 app.get('/dashboard', verifyToken, async (req, res) => {
     if (req.user.role !== 'admin') return res.status(403).send("Forbidden");
     const users = await User.find({});

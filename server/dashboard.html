@@ -41,13 +41,15 @@
         .teacher { background: #e3f2fd; color: #1565c0; }
         .student { background: #e8f5e9; color: #2e7d32; }
         
-        .btn { border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; color: white; }
+        .btn { border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; color: white; display: inline-flex; align-items: center; gap: 5px; }
         .btn-add { background: var(--primary); }
         .btn-success { background: var(--success); }
         .btn-danger { background: var(--danger); padding: 8px 14px; font-size: 12px; }
         .btn-warn { background: #f1c40f; color: #333; }
+        .btn-primary { background: var(--primary); padding: 8px 14px; font-size: 12px; }
 
         .mesh-box { padding: 15px; background: #f0f4ff; border-left: 5px solid var(--primary); margin-bottom: 10px; border-radius: 8px; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body>
@@ -94,7 +96,7 @@
             <input type="text" id="logFilter" onkeyup="filterLogs()" placeholder="Search logs by class name..." style="width:100%; margin-bottom:15px; box-sizing:border-box; padding:12px; border-radius:8px; border:1px solid #ddd;">
             <div style="overflow-x: auto;">
                 <table>
-                    <thead><tr><th>Timestamp</th><th>Class</th><th>Teacher</th><th>Report</th></tr></thead>
+                    <thead><tr><th>Timestamp</th><th>Class</th><th>Teacher</th><th>Actions</th></tr></thead>
                     <tbody id="logBody">{{LOG_LIST}}</tbody>
                 </table>
             </div>
@@ -157,7 +159,8 @@
 
         async function deleteUser(id) {
             if (!confirm("Delete this identity?")) return;
-            event.target.classList.add('loading');
+            // Use event.currentTarget to handle the loading class correctly
+            event.currentTarget.classList.add('loading');
             const res = await fetch('/admin/delete-user', {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': TOKEN },
                 body: JSON.stringify({ id })
