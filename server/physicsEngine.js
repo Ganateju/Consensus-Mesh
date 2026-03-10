@@ -1,37 +1,38 @@
 /**
- * physicsEngine.js - The Consensus Mesh Spherical Shield (Zero-Trust Edition)
+ * physicsEngine.js - The Consensus Mesh Spherical Shield (Elite Zero-Trust Edition)
  */
 
 require('dotenv').config();
 
 /**
  * Validates student proximity using N-Dimensional Euclidean Displacement.
- * @param {Object} studentWifi - { SSID: RSSI_Level }
- * @param {Object} masterWifi  - { SSID: RSSI_Level }
- * @param {Object} sessionSettings - { threshold, maxRadius, physicsEnabled }
+ * Logic optimized to account for hardware variance (phone cases, antennas).
  */
 const validateBubbleBoundary = (studentWifi, masterWifi, sessionSettings = {}) => {
     try {
-        // 1. Dynamic Settings Extraction (Teacher-Calibrated or Global Fallback)
+        // 1. DYNAMIC CONFIGURATION
         const physicsEnabled = sessionSettings.physicsEnabled ?? (process.env.PHYSICS_ENABLED === 'true');
-        const maxAllowedRadius = parseFloat(sessionSettings.maxRadius) || parseFloat(process.env.MAX_ROOM_RADIUS) || 12.0;
+        
+        // Increase default radius slightly to 18.0 for better indoor coverage 
+        const maxAllowedRadius = parseFloat(sessionSettings.maxRadius) || 18.0; 
         
         if (!physicsEnabled) {
             return { valid: true, bubbleDistance: 0, status: "Physics Shield Bypassed" };
         }
 
         if (!studentWifi || !masterWifi || Object.keys(masterWifi).length === 0) {
-            return { valid: false, bubbleDistance: 99.9, status: "Missing Signal Map" };
+            return { valid: false, bubbleDistance: 99.9, status: "Incomplete Signal Map" };
         }
 
         let sumSquaredDifferences = 0;
         let commonPoints = 0;
         let wallObstructionHits = 0;
         
-        // 🛡️ WALL-GUARD CALIBRATION
-        const ATTENUATION_THRESHOLD = 22; 
+        // 🛡️ REFINED WALL-GUARD THRESHOLD
+        // 26dB is a high-confidence threshold that ignores minor drops from hand-interference.
+        const ATTENUATION_THRESHOLD = 26; 
 
-        // 2. N-Dimensional Signal Mapping
+        // 2. N-DIMENSIONAL SIGNAL MAPPING
         for (const ssid in masterWifi) {
             if (Object.prototype.hasOwnProperty.call(studentWifi, ssid)) {
                 const teacherRSSI = masterWifi[ssid];
@@ -41,44 +42,42 @@ const validateBubbleBoundary = (studentWifi, masterWifi, sessionSettings = {}) =
                 const signalGap = teacherRSSI - studentRSSI;
 
                 /**
-                 * 🧱 MATERIAL ATTENUATION AUDIT
-                 * Detects non-linear signal drops that indicate physical barriers.
+                 * 🧱 PERCENTAGE-BASED WALL AUDIT
+                 * Detects non-linear signal drops indicating physical barriers.
                  */
                 if (Math.abs(signalGap) > ATTENUATION_THRESHOLD) {
                     wallObstructionHits++;
                 }
 
-                /**
-                 * 📐 EUCLIDEAN DISTANCE (Multi-Dimensional)
-                 * Calculation: sum of squared differences across all shared WiFi dimensions.
-                 */
                 sumSquaredDifferences += Math.pow(signalGap, 2);
                 commonPoints++;
             }
         }
 
         // 3. MESH CONFIDENCE CHECK
+        // Require at least 2 common routers to perform vector math.
         if (commonPoints < 2) {
             return { 
                 valid: false, 
                 bubbleDistance: 99.9, 
-                status: "Mesh Overlap Failure" 
+                status: "Low Mesh Confidence" 
             };
         }
 
         /**
          * 🔮 RADIAL DISPLACEMENT (RMS Calculation)
-         * Equation: $$d = \sqrt{\frac{\sum_{i=1}^{n} (T_i - S_i)^2}{n}}$$
+         * Formula: Root Mean Square of the Signal Gap
          */
         const bubbleDistance = Math.sqrt(sumSquaredDifferences / commonPoints);
-        
-        
 
         /**
          * ⚖️ ZERO-TRUST DECISION LOGIC
-         * We verify that the student is within the sphere AND not behind a concrete wall.
+         * A student is valid if they are inside the radius AND not flagged by Wall-Guard.
          */
-        const isBehindWall = wallObstructionHits >= 2; 
+        
+        // Logical Fix: A "Wall" is only confirmed if at least 40% of shared signals 
+        // show a massive drop. This prevents one oscillating router from flagging a student.
+        const isBehindWall = wallObstructionHits >= (commonPoints * 0.4) && wallObstructionHits >= 3; 
         const isInsideBubble = bubbleDistance <= maxAllowedRadius;
 
         return {
@@ -87,7 +86,7 @@ const validateBubbleBoundary = (studentWifi, masterWifi, sessionSettings = {}) =
             limit: maxAllowedRadius,
             isBehindWall: isBehindWall,
             meshConfidence: commonPoints, 
-            status: isBehindWall ? "Obstruction (Wall-Guard)" : (isInsideBubble ? "Inside Mesh" : "Outside Bubble")
+            status: isBehindWall ? "Obstruction Detected" : (isInsideBubble ? "Inside Mesh" : "Outside Bubble")
         };
 
     } catch (error) {

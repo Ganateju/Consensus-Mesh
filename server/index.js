@@ -45,7 +45,13 @@ const History = mongoose.model('History', new mongoose.Schema({
     className: String,
     teacherID: String,
     timestamp: { type: Date, default: Date.now },
-    attendance: [{ rollNo: String, rfStability: Number, status: String, flags: [String] }]
+    attendance: [{ 
+        rollNo: String, 
+        rfStability: Number, 
+        liveness: String, 
+        status: String, 
+        flags: [String] 
+    }]
 }));
 
 // 3. SECURITY MIDDLEWARE
@@ -86,29 +92,26 @@ app.post('/login', async (req, res) => {
     } else { res.status(401).json({ status: "error" }); }
 });
 
-app.post('/admin/add-user', verifyToken, async (req, res) => {
-    try {
-        const { username, password, role, rollNo, department } = req.body;
-        const hashedPassword = await bcrypt.hash(password, 10);
-        await User.create({ username: username.toLowerCase().trim(), password: hashedPassword, role, rollNo, department: department?.toUpperCase() });
-        res.json({ status: "success" });
-    } catch (e) { res.status(400).send("User Conflict"); }
+// --- FILTERED EXPORT ROUTE ---
+app.get('/admin/export-attendance', verifyToken, async (req, res) => {
+    const { className, teacherID } = req.query;
+    let filter = {};
+    if (className) filter.className = className;
+    if (teacherID) filter.teacherID = teacherID.toLowerCase().trim();
+
+    const history = await History.find(filter).sort({ timestamp: -1 });
+    
+    let csv = "Timestamp,Class,Teacher,RollNo,Similarity,Liveness,Status,Flags\n";
+    history.forEach(s => s.attendance.forEach(r => {
+        csv += `${s.timestamp.toISOString()},${s.className},${s.teacherID},${r.rollNo},${r.rfStability}%,${r.liveness || '❌'},${r.status},${r.flags.join('|')}\n`;
+    }));
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=Mesh_Report_${className || 'Full'}.csv`);
+    res.send(csv);
 });
 
-app.post('/admin/add-schedule', verifyToken, async (req, res) => {
-    try {
-        const { teacherID, day, startTime, endTime, className } = req.body;
-        await Schedule.create({ teacherID: teacherID.toLowerCase().trim(), day, startTime, endTime, className: className.toUpperCase() });
-        res.json({ status: "success" });
-    } catch (e) { res.status(400).send("Schedule Conflict"); }
-});
-
-app.post('/admin/delete-user', verifyToken, async (req, res) => {
-    try { await User.findByIdAndDelete(req.body.id); res.json({ status: "success" }); } 
-    catch (e) { res.status(500).send("Delete Failed"); }
-});
-
-// --- TEACHER ENGINE (PULSE SYNC & CALIBRATION) ---
+// --- TEACHER ENGINE ---
 
 app.post('/set-master', verifyToken, async (req, res) => {
     const { wifi, threshold, maxRadius, physicsEnabled } = req.body;
@@ -139,25 +142,23 @@ app.post('/trigger-quiz', verifyToken, (req, res) => {
     const teacherID = req.user.username.toLowerCase().trim();
     if(!ACTIVE_SESSIONS[teacherID]) return res.status(400).send("Offline");
     ACTIVE_SESSIONS[teacherID].quizActive = true;
-    ACTIVE_SESSIONS[teacherID].quizWindowEnd = Date.now() + 6000; // 6s Global Window
-    setTimeout(() => { if(ACTIVE_SESSIONS[teacherID]) ACTIVE_SESSIONS[teacherID].quizActive = false; }, 6000); 
+    ACTIVE_SESSIONS[teacherID].quizWindowEnd = Date.now() + 10000; 
+    setTimeout(() => { if(ACTIVE_SESSIONS[teacherID]) ACTIVE_SESSIONS[teacherID].quizActive = false; }, 10000); 
     res.json({ status: "triggered" });
 });
 
-// --- STUDENT ENGINE (SYNCED HEARTBEAT) ---
+// --- STUDENT ENGINE ---
 
-app.post('/discover-room', verifyToken, (req, res) => {
-    const studentWifi = req.body.wifi;
-    let bestMatch = null, highestScore = 0;
-    for (const [tID, session] of Object.entries(ACTIVE_SESSIONS)) {
-        const score = calculateSimilarity(studentWifi, session.masterWifi);
-        if (score >= session.settings.threshold && score > highestScore) { 
-            highestScore = score; 
-            bestMatch = tID; 
+app.post('/submit-liveness', verifyToken, (req, res) => {
+    const { teacherID } = req.body;
+    const session = ACTIVE_SESSIONS[teacherID.toLowerCase().trim()];
+    if (session?.quizActive) {
+        if (session.sessionEvidence[req.user.id]) {
+            session.sessionEvidence[req.user.id].liveness = true;
+            return res.json({ status: "verified", message: "Proof accepted" });
         }
     }
-    if (bestMatch) res.json({ status: "found", teacherID: bestMatch });
-    else res.status(404).json({ status: "not_found" });
+    res.status(400).json({ status: "error", message: "Window Closed" });
 });
 
 app.post('/submit-evidence', verifyToken, (req, res) => {
@@ -165,7 +166,6 @@ app.post('/submit-evidence', verifyToken, (req, res) => {
     const session = ACTIVE_SESSIONS[teacherID.toLowerCase().trim()];
     if (!session) return res.status(400).json({ status: "no_session" });
     
-    // 🕒 Window Enforcement for Liveness
     const isInsideWindow = session.quizActive && (Date.now() < session.quizWindowEnd);
 
     const sID = req.user.id; 
@@ -178,17 +178,7 @@ app.post('/submit-evidence', verifyToken, (req, res) => {
     res.json({ status: "ok", quizActive: isInsideWindow });
 });
 
-app.post('/submit-liveness', verifyToken, (req, res) => {
-    const { teacherID } = req.body;
-    const session = ACTIVE_SESSIONS[teacherID.toLowerCase().trim()];
-    if (session?.quizActive) {
-        if (session.sessionEvidence[req.user.id]) session.sessionEvidence[req.user.id].liveness = true;
-        return res.json({ status: "verified" });
-    }
-    res.status(400).send("Window Closed");
-});
-
-// --- ANALYTICS HUB (CONSENSUS & ANTI-CLUSTER) ---
+// --- ANALYTICS HUB ---
 
 app.post('/finalize-session', verifyToken, async (req, res) => {
     const teacherID = req.user.username.toLowerCase().trim();
@@ -200,21 +190,20 @@ app.post('/finalize-session', verifyToken, async (req, res) => {
 
     const fullReport = enrolledStudents.map(student => {
         const evidence = studentsArray.find(e => e.rollNo === student.rollNo);
-        let status = "ABSENT", score = 0, dist = 0, flags = [];
+        let status = "ABSENT", score = 0, dist = 0, flags = [], livenessIcon = "❌";
 
         if (evidence) {
             const latestWifi = evidence.wifiHistory[evidence.wifiHistory.length - 1];
             score = calculateSimilarity(latestWifi, session.masterWifi);
             const bubble = validateBubbleBoundary(latestWifi, session.masterWifi, session.settings);
             dist = bubble.bubbleDistance;
+            livenessIcon = evidence.liveness ? "✅" : "❌";
 
-            // 1. CONSENSUS SET DIFFERENCE CHECK
             const studentSSIDs = Object.keys(latestWifi);
             const teacherSSIDs = Object.keys(session.masterWifi);
             const overlap = studentSSIDs.filter(x => teacherSSIDs.includes(x));
             if (overlap.length / teacherSSIDs.length < 0.3) flags.push("Environment Mismatch");
 
-            // 2. ANTI-CLUSTER & MOTION AUDIT
             const sameFingerprint = studentsArray.filter(other => 
                 other.rollNo !== student.rollNo && 
                 calculateSimilarity(latestWifi, other.wifiHistory[other.wifiHistory.length - 1]) > 98
@@ -226,18 +215,17 @@ app.post('/finalize-session', verifyToken, async (req, res) => {
                 flags.push(`Proxy Cluster Detected (Peers: ${peers})`);
             }
 
-            // 🛡️ DECISION LOGIC
-            if (score > session.settings.threshold && evidence.liveness) {
+            if (score >= session.settings.threshold && evidence.liveness) {
                 if (session.settings.physicsEnabled && !bubble.valid) {
                     status = `ABSENT (Shield: ${bubble.status})`;
                 } else if (flags.some(f => f.includes("Proxy"))) {
                     status = "PARTIAL (Cluster Flag)";
                 } else { status = "PRESENT"; }
-            } else if (score > (session.settings.threshold / 2)) {
+            } else if (score > 2) {
                 status = "PARTIAL";
             }
         }
-        return { rollNo: student.rollNo, rfStability: score.toFixed(0), status, displacementUnits: dist, flags };
+        return { rollNo: student.rollNo, rfStability: score.toFixed(0), liveness: livenessIcon, status, displacementUnits: dist, flags };
     });
 
     res.json({ status: "success", reviewList: fullReport, className: session.className });
@@ -258,7 +246,9 @@ app.get('/dashboard', verifyToken, async (req, res) => {
     const token = req.query.token;
 
     const userRows = users.map(u => `<tr><td>${u.username}</td><td>${u.rollNo || '--'}</td><td>${u.department || '--'}</td><td><span class="badge ${u.role}">${u.role}</span></td><td><button class="btn btn-danger" onclick="deleteUser('${u._id}')">Delete</button></td></tr>`).join('');
-    const logRows = logs.map(l => `<tr class="log-row" data-class="${l.className}"><td>${new Date(l.timestamp).toLocaleString()}</td><td><b>${l.className}</b></td><td>${l.teacherID}</td><td><button class="btn btn-primary" onclick="window.location.href='/admin/export-attendance?token=${token}'">Report</button></td></tr>`).join('');
+    
+    const logRows = logs.map(l => `<tr class="log-row" data-class="${l.className}"><td>${new Date(l.timestamp).toLocaleString()}</td><td><b>${l.className}</b></td><td>${l.teacherID}</td><td><button class="btn btn-primary" onclick="window.location.href='/admin/export-attendance?token=${token}&className=${l.className}&teacherID=${l.teacherID}'">Report</button></td></tr>`).join('');
+    
     const liveMeshRows = Object.keys(ACTIVE_SESSIONS).map(tID => `<div class="mesh-box"><b>${ACTIVE_SESSIONS[tID].className}</b>: ${tID} (${Object.keys(ACTIVE_SESSIONS[tID].sessionEvidence).length} Links)</div>`).join('') || '<p>Idle</p>';
 
     const html = fs.readFileSync(path.join(__dirname, 'dashboard.html'), 'utf8');
