@@ -1,12 +1,13 @@
-# Consensus Mesh 📡 
-### **Zero-Trust Hybrid Proximity & Identity Verification**
+# Consensus Mesh 📡
+
+### Zero-Trust Environmental Consensus Architecture
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Flutter](https://img.shields.io/badge/Platform-Flutter-02569B?logo=flutter)](https://flutter.dev)
 [![Node.js](https://img.shields.io/badge/Backend-Node.js-339933?logo=node.js)](https://nodejs.org)
 [![MongoDB](https://img.shields.io/badge/Database-MongoDB-47A248?logo=mongodb)](https://www.mongodb.com/)
 
-**Consensus Mesh** is a high-security attendance and identity verification ecosystem designed to eliminate "Proxy Attendance." It creates a mathematical consensus of the ambient RF (Radio Frequency) environment between a Teacher and a Student. If you aren't breathing the same air and seeing the same signals at the exact same millisecond, you aren't in the mesh.
+**Consensus Mesh** is a high-security attendance and identity verification ecosystem designed to eliminate "Proxy Attendance." Consensus Mesh establishes trust through environmental consensus.Instead of verifying credentials, it verifies shared physical reality by combining RF fingerprinting, indoor triangulation, temporal synchronization and human liveness validation. If you aren't breathing the same air and seeing the same signals at the exact same millisecond, you aren't in the mesh.
 ---
 ## 📖 Documentation
 * [🚀 Project Overview](./PROJECT_OVERVIEW.md) - *The "Why" and "What"*
@@ -14,24 +15,39 @@
 
 
 ---
+## Status
 
-## 🌟 Core Innovation: The "Zero-Trust Quad-Lock"
+Current State : Functional MVP
 
-Consensus Mesh enforces four simultaneous proofs of presence to ensure 100% integrity:
+Deployment : APK Released
 
-1. **Spatial Consensus (N-Dimensional Mapping):**
-   The server compares the WiFi "landscape" (SSIDs and RSSI) using **Cosine Similarity**. Unlike GPS, WiFi signals cannot be easily mocked via software and vary per meter of distance.
-   
-2. **Pulse-Sync Temporal Logic:**
-   Heartbeats are synchronized to a **Universal 10-second Clock Pulse**. Challenges hit every phone in the room at the same millisecond, making it physically impossible for one person to handle multiple devices during a check.
+Validation Phase : Campus Pilot Deployment
 
-3. **Human Liveness (Cognitive Challenge):**
-   - **Smallest Number Scan:** Students must identify and tap the smallest number among random choices within 3 seconds.
-   - **Inertial Audit:** Uses **Accelerometer Variance** to ensure the device is in a human hand, flagging devices sitting static in bags or emulators.
+Current Focus
 
-4. **Anti-Cluster Detection (Peer-to-Peer Audit):**
-   The server performs a cross-comparison between all students. If devices report identical signal fingerprints and motion patterns, they are flagged as a **Proxy Cluster**.
+• Environmental Consensus
+• Dynamic Indoor Triangulation
+• Cluster Detection
+• Proxy Resistance Validation
+• Real-world Deployment Analysis
 
+Roadmap
+
+□ Campus Scale Validation
+□ Multi-Classroom Calibration
+□ Adaptive Similarity Models
+□ Large-Scale Consensus Analytics
+---
+## 🌟 Core Innovation: Environmental Consensus Mesh:
+
+Consensus Mesh derives trust from four independent dimensions of evidence:
+
+• Spatial Consensus
+• Temporal Consensus
+• Human Liveness
+• Distributed Peer Verification
+
+Together these create a robust environmental proof of presence that is significantly harder to spoof than credential-based attendance systems.
 ---
 
 ## 🛡️ Security Analysis (Defense Mechanisms)
@@ -85,6 +101,17 @@ Includes a **Reactive Control Center**:
 - **Database:** MongoDB Atlas (NoSQL)
 - **Authentication:** JWT (HMAC-SHA256) & Bcrypt Password Hashing
 
+---
+## Engineering Domains
+
+- Systems Engineering
+- Signal Processing
+- Distributed Verification
+- Sensor Fusion
+- Indoor Localization
+- Security Engineering
+- Mobile Systems
+- Backend Architecture
 ---
 
 **Developed with ❤️ by Ganateju** *Securing identity through environmental consensus.*
