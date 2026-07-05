@@ -31,12 +31,6 @@ Current Focus
 • Proxy Resistance Validation
 • Real-world Deployment Analysis
 
-Roadmap
-
-□ Campus Scale Validation
-□ Multi-Classroom Calibration
-□ Adaptive Similarity Models
-□ Large-Scale Consensus Analytics
 ---
 ## 🌟 Core Innovation: Environmental Consensus Mesh:
 
